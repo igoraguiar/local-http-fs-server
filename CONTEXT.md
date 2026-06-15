@@ -8,6 +8,9 @@
 
 | Term | Definition |
 |------|-----------|
+| **MCP Server Mode** | Optional mode activated by `--mcp stdio`. Runs the MCP stdio server alongside the HTTP server, sharing the same registry. Stdout carries MCP JSON-RPC messages; stderr carries all logs. Exposes 4 tools: `register_folder`, `unregister_folder`, `update_folder`, `list_folders`. |
+| **MCP Tool** | A named function exposed by the MCP server, with a JSON schema for parameters and a structured response. Mirrors the HTTP CRUD API (register, unregister, update, list) with rich responses including HTTP URLs. |
+| **CLI Precedence** | Configuration resolution order: CLI switches > env vars > hardcoded defaults. E.g., `--port 3000` overrides `PORT=8080`, which overrides the default `8080`. |
 | **Slug** | URL-safe unique identifier for a registered folder, composed of a readable basename + random suffix (8 chars). Format: `^[a-z0-9][a-z0-9_-]{0,63}$`. Used as route prefix (`/<slug>/`) and subdomain (`<slug>.localhost`). |
 | **Registry** | In-memory `Map<string, FolderEntry>` keyed by slug. Holds all active folder registrations. Backed by `registry.json` on disk when persistence is enabled. |
 | **FolderEntry** | Interface with fields: `slug`, `path` (absolute), `createdAt`, `updatedAt`. One entry per registered directory. |
@@ -55,8 +58,16 @@
 ### XSS Protection
 - Dashboard uses `textContent` for all dynamic text and `encodeURIComponent` for URLs in href attributes. Zero `innerHTML` usage. No external dependencies (no DOMPurify).
 
+### MCP Server Mode
+- **4 tools:** `register_folder`, `unregister_folder`, `update_folder`, `list_folders`. No `read_file` or `list_directory` — agents have native filesystem access.
+- **Rich responses:** MCP tool responses mirror the HTTP API format (slug, path, url, subdomain_url, timestamps). Agent gets ready-to-use HTTP URLs.
+- **Dual mode:** `--mcp stdio` starts both HTTP server and MCP stdio listener. They share the same in-memory registry. HTTP continues serving files; MCP provides agent-controlled registration.
+- **stdout/stderr split:** When MCP is active, stdout carries MCP JSON-RPC messages only. All logs (startup banner, request logs, errors) go to stderr.
+- **Parameter schema:** MCP tools accept the same parameters as the HTTP API (e.g., optional `slug` in `register_folder`). Tool descriptions clarify non-obvious behavior (e.g., PUT lookup rules).
+- **SDK integration:** Full `@modelcontextprotocol/sdk` usage — `Server` class handles JSON-RPC, handshake, tool registration. Not just types.
+
 ## Architecture Principles
 
-- **Single process, zero deps:** Everything inline. No npm packages, no build step.
+- **Single process, minimal deps:** One runtime dependency (`@modelcontextprotocol/sdk` for MCP mode). No build step. See [ADR-0001](./docs/adr/0001-mcp-sdk-dependency.md).
 - **KISS over feature completeness:** Breadth before polish. Incremental delivery with manual verification gates.
 - **LLM-agent first:** Structured JSON responses with `status`, `message`, `data/details`, `hint` fields for programmatic consumption.
