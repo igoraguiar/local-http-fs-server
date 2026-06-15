@@ -27,6 +27,12 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
+# pi-lens state
+.pi-lens
+
+# runtime state
+registry.json
+
 # IntelliJ based IDEs
 .idea
 
