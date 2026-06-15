@@ -174,7 +174,7 @@ This project would not exist without:
 - **[Bun](https://bun.sh)** — the runtime that makes this zero-overhead single-process server possible
 - **[Qwen](https://qwen.ai)** — the Qwen3.6-27B model that wrote every line of code
 - **[llama.cpp](https://github.com/ggerganov/llama.cpp)** — the inference engine that powers local LLM execution
-- **[llama-swap](https://github.com/skips74cpu/llama-swap)** — the memory management tool that makes running large models feasible on consumer hardware
+- **[llama-swap](https://github.com/mostlygeek/llama-swap)** — the memory management tool that makes running large models feasible on consumer hardware
 - **[pi coding agent](https://github.com/earendil-works/pi-coding-agent)** — the AI coding agent that orchestrated the entire project
 
 ## License
