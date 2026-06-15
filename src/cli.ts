@@ -6,6 +6,7 @@ interface CliConfig {
 	mcpStdio: boolean;
 	persist: boolean;
 	registryFile: string;
+	printTemplate?: string;
 }
 
 function parseCliArgs(): CliConfig {
@@ -15,6 +16,7 @@ function parseCliArgs(): CliConfig {
 	let mcpStdio = false;
 	let persist = process.env.PERSIST === "true";
 	let registryFile = "registry.json";
+	let printTemplate: string | undefined;
 
 	for (let i = 0; i < args.length; i++) {
 		const arg = args[i]!;
@@ -32,15 +34,18 @@ function parseCliArgs(): CliConfig {
 			persist = true;
 			const val = arg.split("=")[1];
 			if (val) registryFile = val;
+		} else if (arg === "--print-template" && args[i + 1]) {
+			printTemplate = args[i + 1]!;
+			i++;
 		}
 	}
 
-	if (isNaN(port) || port < 1 || port > 65535) {
+	if (isNaN(port) || port < 0 || port > 65535) {
 		console.error(`Invalid port: ${port}. Using default 8080.`);
 		port = 8080;
 	}
 
-	return { port, host, mcpStdio, persist, registryFile };
+	return { port, host, mcpStdio, persist, registryFile, printTemplate };
 }
 
 const config = parseCliArgs();

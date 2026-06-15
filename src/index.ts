@@ -6,11 +6,11 @@ import { startHttpServer } from "./http.js";
 
 // ─── Startup ──────────────────────────────────────────────────────────────────
 
-startHttpServer();
+const server = startHttpServer();
 
 if (config.mcpStdio) {
 	log(
-		`MCP stdio server + HTTP server running at http://${config.host}:${config.port}`,
+		`MCP stdio server + HTTP server running at http://${config.host}:${server.port}`,
 	);
 	log(
 		`MCP tools: register_folder, unregister_folder, update_folder, list_folders`,
@@ -20,9 +20,13 @@ if (config.mcpStdio) {
 	const transport = new StdioServerTransport();
 	mcpServer.connect(transport);
 } else {
-	log(`Local HTTP File Server running at http://${config.host}:${config.port}`);
-	log(`API: http://localhost:${config.port}/`);
-	log(`Dashboard: http://localhost:${config.port}/ (browser)`);
+	log(`Local HTTP File Server running at http://${config.host}:${server.port}`);
+	log(`API: http://localhost:${server.port}/`);
+	log(`Dashboard: http://localhost:${server.port}/ (browser)`);
+}
+
+if (config.printTemplate) {
+	log(config.printTemplate.replace("$port", String(server.port)));
 }
 
 process.on("SIGINT", () => {

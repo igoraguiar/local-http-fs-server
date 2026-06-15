@@ -101,4 +101,15 @@ function saveRegistry(): void {
 
 loadRegistry();
 
-export { registry, generateSlug, validateSlug, saveRegistry, type FolderEntry };
+function clearRegistry(): void {
+	registry.clear();
+}
+
+export {
+	registry,
+	generateSlug,
+	validateSlug,
+	saveRegistry,
+	clearRegistry,
+	type FolderEntry,
+};

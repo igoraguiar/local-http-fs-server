@@ -11,7 +11,7 @@ Local HTTP File Server is a Bun application that dynamically registers filesyste
 | Runtime | Bun (>= 1.0.0) — native APIs only (`Bun.serve`, `Bun.file`) |
 | Language | TypeScript 5 (ESNext, strict mode, no emit) |
 | Module System | ESM (`"type": "module"`, `"module": "Preserve"`) |
-| Testing | Bash-based curl test suite (`test.sh`) + `bun:test` in `tests/` |
+| Testing | `bun:test` in `tests/` (direct handler invocation + spawned server) |
 | Persistence | Optional JSON file (`registry.json`) — gated by `PERSIST=true` |
 | MCP | `@modelcontextprotocol/sdk` + `zod` — stdio server mode via `--mcp stdio` |
 
@@ -28,8 +28,7 @@ src/
   http.ts         — startHttpServer, Bun.serve fetch callback, routing + file serving
   utils.ts        — ok(), err(), isPathSafe, extractSubdomain, parseRange, generateETag, httpDate, buildDirListing
 dashboard.html    — Self-contained HTML dashboard (served at GET / without JSON Accept).
-test.sh           — Automated curl test suite (6 phases, ~80 assertions).
-tests/            — bun:test unit and integration tests.
+tests/            — bun:test suite: http-api (direct handler), http-persistence (spawned server), mcp (integration).
 package.json      — Bun config, scripts, dev dependencies.
 tsconfig.json     — TypeScript strict config (noEmit, verbatimModuleSyntax, noUncheckedIndexedAccess).
 CONTEXT.md        — Glossary, terminology, and key architectural decisions.
@@ -47,9 +46,7 @@ plans/archive/    — Completed plans (historical reference).
 | Start with persistence | `PERSIST=true bun run src/index.ts` |
 | Start with MCP mode | `bun run src/index.ts --mcp stdio` |
 | Custom port | `PORT=3000 bun run src/index.ts` |
-| Run curl tests | `bash test.sh` |
-| Run curl tests on custom port | `TEST_PORT=9200 bash test.sh` |
-| Run bun:test | `bun test` |
+| Run all tests | `bun test` |
 
 No linter or formatter is configured. Follow the existing code style in `src/` modules.
 
@@ -103,7 +100,6 @@ No linter or formatter is configured. Follow the existing code style in `src/` m
 - Expose full absolute paths in file-serving responses — use `basename()` truncation.
 - Use `innerHTML` in `dashboard.html` — use `textContent` and `createElement` for XSS safety.
 - Break the existing response format (`{ status, message, data, hint }`).
-- Modify `test.sh` assertions without updating the corresponding behavior first.
 - Introduce build steps or bundlers — the app runs directly via `bun run src/index.ts`.
 - Define `FolderEntry` in multiple files — it is a single source of truth in `registry.ts`.
 
