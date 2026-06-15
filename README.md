@@ -11,9 +11,10 @@ A lightweight, zero-dependency HTTP file server built with [Bun](https://bun.sh)
 - **File serving** — automatic MIME detection, range requests (206), ETags, and conditional responses (304)
 - **Directory listing** — HTML directory browsing with parent links and file sizes
 - **Dashboard UI** — self-contained HTML interface for visual management
+- **MCP stdio server** — `--mcp stdio` mode for AI agent integration via Model Context Protocol
 - **Optional persistence** — survive restarts via `registry.json` on disk
 - **Path traversal protection** — resolved paths validated against registered folder roots
-- **Zero dependencies** — single-process Bun app, no npm packages
+- **Minimal dependencies** — only `@modelcontextprotocol/sdk` and `zod`
 
 ## Quick Start
 
@@ -22,13 +23,16 @@ A lightweight, zero-dependency HTTP file server built with [Bun](https://bun.sh)
 bun install
 
 # Start the server
-bun run index.ts
+bun run src/index.ts
 
 # Or with persistence enabled
-PERSIST=true bun run index.ts
+PERSIST=true bun run src/index.ts
 
 # Custom port
-PORT=3000 bun run index.ts
+PORT=3000 bun run src/index.ts
+
+# MCP stdio mode (for AI agents)
+bun run src/index.ts --mcp stdio
 ```
 
 Server starts on `http://0.0.0.0:6868` by default.
@@ -120,10 +124,11 @@ Full API specification with all request/response examples is in [SPEC.md](SPEC.m
 
 ## Configuration
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `6868` | Server port |
-| `PERSIST` | `false` | Enable `registry.json` persistence (`true` / `false`) |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `PORT` env or `--port <n>` | `6868` | Server port |
+| `PERSIST` env or `--persist` | `false` | Enable `registry.json` persistence |
+| `--mcp stdio` | off | Start MCP stdio server alongside HTTP |
 
 ## Security
 
@@ -135,17 +140,25 @@ Full API specification with all request/response examples is in [SPEC.md](SPEC.m
 ## Testing
 
 ```bash
-bash test.sh
+bun test
 ```
 
-Runs a comprehensive curl-based test suite covering all CRUD operations, file serving, range requests, caching headers, directory listings, dashboard UI, and persistence.
+Runs the test suite covering CRUD API, file serving, persistence, and MCP integration.
 
 ## Project Structure
 
 ```
-index.ts          — Server entry point (all logic)
-dashboard.html    — Dashboard UI
-test.sh           — Automated test suite
+src/
+  index.ts        — Entry point: start HTTP, conditionally start MCP, wire signals
+  cli.ts          — CLI config and logging
+  registry.ts     — In-memory registry Map and persistence
+  slug.ts         — Slug generation and validation
+  handlers.ts     — CRUD business logic (returns CrudResult)
+  http.ts         — Bun.serve fetch handler, routing, file serving
+  mcp.ts          — MCP tool definitions and server setup
+  utils.ts        — Helpers: ok/err responses, path safety, ETag, range parsing
+dashboard.html    — Self-contained HTML dashboard
+tests/            — bun:test suite (CRUD, file serving, persistence, MCP)
 package.json      — Bun configuration
 tsconfig.json     — TypeScript strict config
 SPEC.md           — Full API specification
