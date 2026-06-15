@@ -21,7 +21,14 @@ describe("MCP stdio integration (StdioClientTransport)", () => {
 	it("server starts and responds to initialize", async () => {
 		transport = new StdioClientTransport({
 			command: "bun",
-			args: ["run", "src/index.ts", "--mcp", "stdio", "--port", String(TEST_PORT)],
+			args: [
+				"run",
+				"src/index.ts",
+				"--mcp",
+				"stdio",
+				"--port",
+				String(TEST_PORT),
+			],
 			env: { ...process.env, PERSIST: "" },
 		});
 
@@ -39,7 +46,14 @@ describe("MCP stdio integration (StdioClientTransport)", () => {
 	it("register_folder works end-to-end", async () => {
 		transport = new StdioClientTransport({
 			command: "bun",
-			args: ["run", "src/index.ts", "--mcp", "stdio", "--port", String(TEST_PORT)],
+			args: [
+				"run",
+				"src/index.ts",
+				"--mcp",
+				"stdio",
+				"--port",
+				String(TEST_PORT),
+			],
 			env: { ...process.env, PERSIST: "" },
 		});
 
@@ -64,7 +78,14 @@ describe("MCP stdio integration (StdioClientTransport)", () => {
 	it("HTTP server is running alongside MCP", async () => {
 		transport = new StdioClientTransport({
 			command: "bun",
-			args: ["run", "src/index.ts", "--mcp", "stdio", "--port", String(TEST_PORT)],
+			args: [
+				"run",
+				"src/index.ts",
+				"--mcp",
+				"stdio",
+				"--port",
+				String(TEST_PORT),
+			],
 			env: { ...process.env, PERSIST: "" },
 		});
 
@@ -92,17 +113,14 @@ describe("MCP stdio integration (StdioClientTransport)", () => {
 
 	it("stderr has logs, stdout is clean JSON", async () => {
 		const { spawn } = await import("node:child_process");
-		const child = spawn("bun", [
-			"run",
-			"src/index.ts",
-			"--mcp",
-			"stdio",
-			"--port",
-			String(TEST_PORT),
-		], {
-			env: { ...process.env, PERSIST: "" },
-			stdio: ["pipe", "pipe", "pipe"],
-		});
+		const child = spawn(
+			"bun",
+			["run", "src/index.ts", "--mcp", "stdio", "--port", String(TEST_PORT)],
+			{
+				env: { ...process.env, PERSIST: "" },
+				stdio: ["pipe", "pipe", "pipe"],
+			},
+		);
 
 		let stderrOutput = "";
 		child.stderr!.on("data", (chunk: Buffer) => {

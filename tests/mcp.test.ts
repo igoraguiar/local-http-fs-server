@@ -33,12 +33,20 @@ describe("MCP tools (InMemoryTransport)", () => {
 		expect(tools.tools.length).toBe(4);
 		const names = tools.tools.map((t) => t.name).sort();
 		expect(names).toEqual(
-			["list_folders", "register_folder", "unregister_folder", "update_folder"].sort(),
+			[
+				"list_folders",
+				"register_folder",
+				"unregister_folder",
+				"update_folder",
+			].sort(),
 		);
 	});
 
 	it("list_folders returns empty array on start", async () => {
-		const result = await client.callTool({ name: "list_folders", arguments: {} });
+		const result = await client.callTool({
+			name: "list_folders",
+			arguments: {},
+		});
 		const parsed = JSON.parse(
 			(result.content as Array<{ type: string; text: string }>)[0]!.text,
 		);
@@ -61,7 +69,10 @@ describe("MCP tools (InMemoryTransport)", () => {
 		expect(parsed.data.url).toContain(parsed.data.slug);
 
 		// Verify list_folders shows it
-		const listResult = await client.callTool({ name: "list_folders", arguments: {} });
+		const listResult = await client.callTool({
+			name: "list_folders",
+			arguments: {},
+		});
 		const listParsed = JSON.parse(
 			(listResult.content as Array<{ type: string; text: string }>)[0]!.text,
 		);
@@ -145,7 +156,10 @@ describe("MCP tools (InMemoryTransport)", () => {
 		expect(unregParsed.ok).toBe(true);
 
 		// Verify empty
-		const listResult = await client.callTool({ name: "list_folders", arguments: {} });
+		const listResult = await client.callTool({
+			name: "list_folders",
+			arguments: {},
+		});
 		const listParsed = JSON.parse(
 			(listResult.content as Array<{ type: string; text: string }>)[0]!.text,
 		);
@@ -218,7 +232,10 @@ describe("MCP tools (InMemoryTransport)", () => {
 			arguments: { folder_path: "/var" },
 		});
 
-		const result = await client.callTool({ name: "list_folders", arguments: {} });
+		const result = await client.callTool({
+			name: "list_folders",
+			arguments: {},
+		});
 		const parsed = JSON.parse(
 			(result.content as Array<{ type: string; text: string }>)[0]!.text,
 		);
