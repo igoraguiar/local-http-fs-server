@@ -253,6 +253,19 @@ src/index.ts
 | `config` needed by multiple modules | `cli.ts` exports parsed `config`; consumers import it (no circularity since `cli.ts` has no internal deps) |
 | Test suite breaks | `bash test.sh` gate at end; HTTP surface is unchanged |
 
+## Status
+
+| Phase | Status | Commit |
+|-------|--------|--------|
+| 0. package.json | ✅ Done | e22be15 |
+| 1. CLI parser | ✅ Done | e22be15 |
+| 2. CRUD extraction | ✅ Done | e22be15 |
+| 3. MCP server | ✅ Done | e22be15 |
+| 4. Dual-mode startup | ✅ Done | e22be15 |
+| 5. Polish | ✅ Done | e22be15 |
+| 6. bun:test suite | ✅ Done | 2b95b42 |
+| 7. Module extraction | ✅ Done | 5f76076 |
+
 ## Estimated Effort
 
 | Phase | Lines | Time |
@@ -264,8 +277,8 @@ src/index.ts
 | 3b. Factor `createMcpServer()` | ~10 (refactor) | 10 min |
 | 4. Dual-mode startup + logging | ~30 | 15 min |
 | 5. Polish | ~0 | 10 min |
-| 6. bun:test suite | ~120 | 45 min |
+| 6. bun:test suite | ~358 | 45 min |
 | 7. Module extraction | ~1160 (refactor) | 60 min |
-| **Total** | **~1590** | **~5.25 hours** |
+| **Total** | **~1948** | **~5.25 hours** |
 
 
