@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { createMcpServer } from "./src/mcp.js";
-import { registry } from "./src/registry.js";
+import { createMcpServer } from "../src/mcp.js";
+import { registry } from "../src/registry.js";
 
 describe("MCP tools (InMemoryTransport)", () => {
 	let client: Client;
