@@ -277,7 +277,8 @@
 
       function renderFolders(folders) {
         const container = document.getElementById("folderList");
-        container.innerHTML = "";
+        while (container.firstChild)
+          container.removeChild(container.firstChild);
 
         if (!folders || folders.length === 0) {
           const empty = createEl("div", { className: "empty-state" });
@@ -466,7 +467,8 @@
 
       function closeModal() {
         const container = document.getElementById("modalContainer");
-        container.innerHTML = "";
+        while (container.firstChild)
+          container.removeChild(container.firstChild);
       }
 
       async function saveEdit(oldSlug, oldPath) {
