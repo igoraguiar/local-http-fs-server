@@ -60,12 +60,7 @@ function startHttpServer(): void {
 						logRequest(method, pathname, result.status);
 						return result.ok
 							? ok(result.message, result.data, result.hint, result.status)
-							: err(
-									result.message,
-									result.status,
-									result.details,
-									result.hint,
-								);
+							: err(result.message, result.status, result.details, result.hint);
 					}
 
 					case "POST": {
@@ -86,12 +81,7 @@ function startHttpServer(): void {
 						logRequest(method, pathname, result.status);
 						return result.ok
 							? ok(result.message, result.data, result.hint, result.status)
-							: err(
-									result.message,
-									result.status,
-									result.details,
-									result.hint,
-								);
+							: err(result.message, result.status, result.details, result.hint);
 					}
 
 					case "DELETE": {
@@ -114,12 +104,7 @@ function startHttpServer(): void {
 						logRequest(method, pathname, result.status);
 						return result.ok
 							? ok(result.message, result.data, result.hint, result.status)
-							: err(
-									result.message,
-									result.status,
-									result.details,
-									result.hint,
-								);
+							: err(result.message, result.status, result.details, result.hint);
 					}
 
 					case "PUT": {
@@ -140,12 +125,7 @@ function startHttpServer(): void {
 						logRequest(method, pathname, result.status);
 						return result.ok
 							? ok(result.message, result.data, result.hint, result.status)
-							: err(
-									result.message,
-									result.status,
-									result.details,
-									result.hint,
-								);
+							: err(result.message, result.status, result.details, result.hint);
 					}
 
 					default:
@@ -332,7 +312,7 @@ function startHttpServer(): void {
 			const rangeResult = parseRange(rangeHeader, fileStat.size);
 
 			const file = Bun.file(resolvedFilePath);
-			let body: any;
+			let body: Blob | null;
 			let status = 200;
 			const responseHeaders: Record<string, string> = {
 				"Content-Type": file.type || "application/octet-stream",
