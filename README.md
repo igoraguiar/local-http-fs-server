@@ -18,6 +18,10 @@ A lightweight HTTP file server built with [Bun](https://bun.sh) that dynamically
 - **Path traversal protection** — resolved paths validated against registered folder roots
 - **Minimal dependencies** — only `@modelcontextprotocol/sdk` and `zod`
 
+## AI Agents
+
+This project includes a [SKILL.md](SKILL.md) file that helps AI agents use the HTTP API to serve directories, preview builds, and debug web apps. Copy it to your agent's skills directory or reference it directly.
+
 ## Quick Start
 
 ```bash
