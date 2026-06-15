@@ -1,0 +1,493 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local HTTP File Server</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: #f5f5f5;
+        color: #222;
+        padding: 2rem;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin-bottom: 1.5rem;
+        font-size: 1.5rem;
+      }
+      h2 {
+        font-size: 1.1rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.25rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+
+      .form-row {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin-bottom: 0.75rem;
+      }
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+      .form-group label {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #555;
+      }
+      .form-group input {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 0.9rem;
+      }
+      .form-group input:focus {
+        outline: none;
+        border-color: #0066cc;
+      }
+
+      button {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      button:active {
+        transform: scale(0.97);
+      }
+      .btn-primary {
+        background: #0066cc;
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #0055aa;
+      }
+      .btn-danger {
+        background: #cc3333;
+        color: #fff;
+      }
+      .btn-danger:hover {
+        background: #aa2222;
+      }
+      .btn-secondary {
+        background: #666;
+        color: #fff;
+      }
+      .btn-secondary:hover {
+        background: #555;
+      }
+      .btn-small {
+        padding: 0.25rem 0.6rem;
+        font-size: 0.8rem;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.6rem 0.75rem;
+        border-bottom: 1px solid #eee;
+      }
+      th {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        color: #666;
+        letter-spacing: 0.03em;
+      }
+      tr:hover td {
+        background: #f9f9f9;
+      }
+      .actions {
+        white-space: nowrap;
+        display: flex;
+        gap: 0.4rem;
+      }
+
+      .toast {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        background: #333;
+        color: #fff;
+        padding: 0.75rem 1.25rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        max-width: 400px;
+        z-index: 1000;
+        opacity: 0;
+        transition: opacity 0.3s;
+      }
+      .toast.visible {
+        opacity: 1;
+      }
+      .toast.error {
+        background: #cc3333;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 2rem;
+        color: #888;
+      }
+      .empty-state svg {
+        width: 48px;
+        height: 48px;
+        margin-bottom: 1rem;
+        opacity: 0.4;
+      }
+
+      .access-url {
+        font-size: 0.78rem;
+        color: #0066cc;
+        word-break: break-all;
+      }
+      .access-url a {
+        color: #0066cc;
+        text-decoration: none;
+      }
+      .access-url a:hover {
+        text-decoration: underline;
+      }
+
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 1.5rem;
+        width: 90%;
+        max-width: 450px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+      }
+      .modal h2 {
+        margin-bottom: 1rem;
+      }
+      .modal .form-row {
+        margin-bottom: 0.5rem;
+      }
+      .modal .modal-actions {
+        display: flex;
+        gap: 0.5rem;
+        justify-content: flex-end;
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Local HTTP File Server</h1>
+
+    <div class="card">
+      <h2>Register Folder</h2>
+      <div class="form-row">
+        <div class="form-group" style="flex: 1">
+          <label for="folderPath">Folder Path</label>
+          <input type="text" id="folderPath" placeholder="/path/to/folder" />
+        </div>
+        <div class="form-group">
+          <label for="customSlug">Slug (optional)</label>
+          <input
+            type="text"
+            id="customSlug"
+            placeholder="auto-generated"
+            style="max-width: 160px"
+          />
+        </div>
+        <button class="btn-primary" onclick="registerFolder()">Register</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Registered Folders</h2>
+      <div id="folderList"></div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <div id="modalContainer"></div>
+
+    <script>
+      const API = "/";
+
+      function showToast(msg, isError) {
+        const el = document.getElementById("toast");
+        el.textContent = msg;
+        el.className = "toast visible" + (isError ? " error" : "");
+        clearTimeout(el._timer);
+        el._timer = setTimeout(() => {
+          el.className = "toast";
+        }, 4000);
+      }
+
+      async function apiCall(method, url, body) {
+        const opts = { method, headers: { Accept: "application/json" } };
+        if (body) {
+          opts.headers["Content-Type"] = "application/json";
+          opts.body = JSON.stringify(body);
+        }
+        const resp = await fetch(url, opts);
+        const data = await resp.json();
+        return { ok: resp.ok, status: resp.status, data };
+      }
+
+      function formatDate(iso) {
+        const d = new Date(iso);
+        return d.toLocaleDateString() + " " + d.toLocaleTimeString();
+      }
+
+      function createEl(tag, attrs, text) {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+        if (text !== undefined) el.textContent = text;
+        return el;
+      }
+
+      function renderFolders(folders) {
+        const container = document.getElementById("folderList");
+        container.innerHTML = "";
+
+        if (!folders || folders.length === 0) {
+          const empty = createEl("div", { className: "empty-state" });
+          empty.appendChild(createEl("p", {}, "No folders registered yet."));
+          container.appendChild(empty);
+          return;
+        }
+
+        const table = createEl("table");
+        const thead = createEl("thead");
+        const headerRow = createEl("tr");
+        ["Slug", "Path", "Registered", "Access", "Actions"].forEach((t) => {
+          headerRow.appendChild(createEl("th", {}, t));
+        });
+        thead.appendChild(headerRow);
+        table.appendChild(thead);
+
+        const tbody = createEl("tbody");
+        folders.forEach((f) => {
+          const tr = createEl("tr");
+
+          // Slug
+          const tdSlug = createEl("td");
+          tdSlug.appendChild(createEl("code", {}, f.slug));
+          tr.appendChild(tdSlug);
+
+          // Path
+          tr.appendChild(createEl("td", {}, f.path));
+
+          // Registered
+          tr.appendChild(createEl("td", {}, formatDate(f.registered_at)));
+
+          // Access URLs
+          const tdAccess = createEl("td");
+          const urlPath = createEl("div", { className: "access-url" });
+          const aPath = createEl("a", { href: f.url, target: "_blank" }, f.url);
+          urlPath.appendChild(aPath);
+          tdAccess.appendChild(urlPath);
+
+          const urlSub = createEl("div", { className: "access-url" });
+          const aSub = createEl(
+            "a",
+            { href: f.subdomain_url, target: "_blank" },
+            f.subdomain_url,
+          );
+          urlSub.appendChild(aSub);
+          tdAccess.appendChild(urlSub);
+          tr.appendChild(tdAccess);
+
+          // Actions
+          const tdActions = createEl("td");
+          const actionsDiv = createEl("div", { className: "actions" });
+
+          const editBtn = createEl(
+            "button",
+            {
+              className: "btn-secondary btn-small",
+              onclick: () => openEditModal(f),
+            },
+            "Edit",
+          );
+          actionsDiv.appendChild(editBtn);
+
+          const delBtn = createEl(
+            "button",
+            {
+              className: "btn-danger btn-small",
+              onclick: () => deleteFolder(f.slug),
+            },
+            "Delete",
+          );
+          actionsDiv.appendChild(delBtn);
+
+          tdActions.appendChild(actionsDiv);
+          tr.appendChild(tdActions);
+
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        container.appendChild(table);
+      }
+
+      async function loadFolders() {
+        try {
+          const { data } = await apiCall("GET", API);
+          if (data.status === "success") {
+            renderFolders(data.data.folders);
+          }
+        } catch (e) {
+          showToast("Failed to load folder list: " + e.message, true);
+        }
+      }
+
+      async function registerFolder() {
+        const path = document.getElementById("folderPath").value.trim();
+        const slug =
+          document.getElementById("customSlug").value.trim() || undefined;
+        if (!path) {
+          showToast("Folder path is required.", true);
+          return;
+        }
+
+        const { ok, data } = await apiCall("POST", API, {
+          folder_path: path,
+          slug,
+        });
+        if (ok) {
+          document.getElementById("folderPath").value = "";
+          document.getElementById("customSlug").value = "";
+          showToast("Folder registered: " + data.data.slug);
+          loadFolders();
+        } else {
+          showToast(data.message, true);
+        }
+      }
+
+      async function deleteFolder(slug) {
+        if (!confirm("Delete folder registration '" + slug + "'?")) return;
+        const { ok, data } = await apiCall(
+          "DELETE",
+          API + "?slug=" + encodeURIComponent(slug),
+        );
+        if (ok) {
+          showToast("Folder unregistered: " + slug);
+          loadFolders();
+        } else {
+          showToast(data.message, true);
+        }
+      }
+
+      function openEditModal(folder) {
+        const overlay = createEl("div", {
+          className: "modal-overlay",
+          onclick: (e) => {
+            if (e.target === overlay) closeModal();
+          },
+        });
+        const modal = createEl("div", { className: "modal" });
+
+        const title = createEl("h2", {}, "Edit Folder: " + folder.slug);
+        modal.appendChild(title);
+
+        const slugGroup = createEl("div", { className: "form-row" });
+        const slugLabel = createEl("label", {}, "Slug");
+        slugGroup.appendChild(slugLabel);
+        const slugInput = createEl("input", {
+          type: "text",
+          id: "editSlug",
+          value: folder.slug,
+        });
+        slugGroup.appendChild(slugInput);
+        modal.appendChild(slugGroup);
+
+        const pathGroup = createEl("div", { className: "form-row" });
+        const pathLabel = createEl("label", {}, "Folder Path");
+        pathGroup.appendChild(pathLabel);
+        const pathInput = createEl("input", {
+          type: "text",
+          id: "editPath",
+          value: folder.path,
+        });
+        pathGroup.appendChild(pathInput);
+        modal.appendChild(pathGroup);
+
+        const actions = createEl("div", { className: "modal-actions" });
+        const cancelBtn = createEl(
+          "button",
+          { className: "btn-secondary", onclick: closeModal },
+          "Cancel",
+        );
+        actions.appendChild(cancelBtn);
+        const saveBtn = createEl(
+          "button",
+          {
+            className: "btn-primary",
+            onclick: () => saveEdit(folder.slug, folder.path),
+          },
+          "Save",
+        );
+        actions.appendChild(saveBtn);
+        modal.appendChild(actions);
+
+        overlay.appendChild(modal);
+        document.getElementById("modalContainer").appendChild(overlay);
+      }
+
+      function closeModal() {
+        const container = document.getElementById("modalContainer");
+        container.innerHTML = "";
+      }
+
+      async function saveEdit(oldSlug, oldPath) {
+        const newSlug = document.getElementById("editSlug").value.trim();
+        const newPath = document.getElementById("editPath").value.trim();
+        closeModal();
+
+        const { ok, data } = await apiCall("PUT", API, {
+          slug: newSlug,
+          folder_path: newPath,
+        });
+        if (ok) {
+          showToast("Folder updated: " + data.data.slug);
+          loadFolders();
+        } else {
+          showToast(data.message, true);
+        }
+      }
+
+      // Initial load
+      loadFolders();
+    </script>
+  </body>
+</html>
