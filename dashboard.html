@@ -10,6 +10,7 @@
         margin: 0;
         padding: 0;
       }
+
       body {
         font-family:
           system-ui,
@@ -21,10 +22,12 @@
         max-width: 900px;
         margin: 0 auto;
       }
+
       h1 {
         margin-bottom: 1.5rem;
         font-size: 1.5rem;
       }
+
       h2 {
         font-size: 1.1rem;
         margin-bottom: 0.75rem;
@@ -45,22 +48,26 @@
         flex-wrap: wrap;
         margin-bottom: 0.75rem;
       }
+
       .form-group {
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
       }
+
       .form-group label {
         font-size: 0.8rem;
         font-weight: 600;
         color: #555;
       }
+
       .form-group input {
         padding: 0.5rem 0.75rem;
         border: 1px solid #ccc;
         border-radius: 4px;
         font-size: 0.9rem;
       }
+
       .form-group input:focus {
         outline: none;
         border-color: #0066cc;
@@ -74,30 +81,38 @@
         cursor: pointer;
         transition: background 0.15s;
       }
+
       button:active {
         transform: scale(0.97);
       }
+
       .btn-primary {
         background: #0066cc;
         color: #fff;
       }
+
       .btn-primary:hover {
         background: #0055aa;
       }
+
       .btn-danger {
         background: #cc3333;
         color: #fff;
       }
+
       .btn-danger:hover {
         background: #aa2222;
       }
+
       .btn-secondary {
         background: #666;
         color: #fff;
       }
+
       .btn-secondary:hover {
         background: #555;
       }
+
       .btn-small {
         padding: 0.25rem 0.6rem;
         font-size: 0.8rem;
@@ -107,21 +122,25 @@
         width: 100%;
         border-collapse: collapse;
       }
+
       th,
       td {
         text-align: left;
         padding: 0.6rem 0.75rem;
         border-bottom: 1px solid #eee;
       }
+
       th {
         font-size: 0.8rem;
         text-transform: uppercase;
         color: #666;
         letter-spacing: 0.03em;
       }
+
       tr:hover td {
         background: #f9f9f9;
       }
+
       .actions {
         white-space: nowrap;
         display: flex;
@@ -142,9 +161,11 @@
         opacity: 0;
         transition: opacity 0.3s;
       }
+
       .toast.visible {
         opacity: 1;
       }
+
       .toast.error {
         background: #cc3333;
       }
@@ -154,6 +175,7 @@
         padding: 2rem;
         color: #888;
       }
+
       .empty-state svg {
         width: 48px;
         height: 48px;
@@ -166,10 +188,12 @@
         color: #0066cc;
         word-break: break-all;
       }
+
       .access-url a {
         color: #0066cc;
         text-decoration: none;
       }
+
       .access-url a:hover {
         text-decoration: underline;
       }
@@ -186,6 +210,7 @@
         justify-content: center;
         z-index: 100;
       }
+
       .modal {
         background: #fff;
         border-radius: 8px;
@@ -194,12 +219,15 @@
         max-width: 450px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
       }
+
       .modal h2 {
         margin-bottom: 1rem;
       }
+
       .modal .form-row {
         margin-bottom: 0.5rem;
       }
+
       .modal .modal-actions {
         display: flex;
         gap: 0.5rem;
@@ -208,6 +236,7 @@
       }
     </style>
   </head>
+
   <body>
     <h1>Local HTTP File Server</h1>
 
@@ -270,7 +299,13 @@
 
       function createEl(tag, attrs, text) {
         const el = document.createElement(tag);
-        for (const [k, v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+        for (const [k, v] of Object.entries(attrs || {})) {
+          if (typeof v === "function") {
+            el[k] = v;
+          } else {
+            el.setAttribute(k, v);
+          }
+        }
         if (text !== undefined) el.textContent = text;
         return el;
       }
