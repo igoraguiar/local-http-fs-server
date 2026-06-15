@@ -33,7 +33,8 @@ package.json      — Bun config, scripts, dev dependencies.
 tsconfig.json     — TypeScript strict config (noEmit, verbatimModuleSyntax, noUncheckedIndexedAccess).
 CONTEXT.md        — Glossary, terminology, and key architectural decisions.
 SPEC.md           — Full API specification with request/response examples.
-plans/            — Implementation planning artifacts.
+plans/            — Active and future plans only.
+plans/archive/    — Completed plans (historical reference).
 ```
 
 ## Commands
@@ -85,6 +86,12 @@ No linter or formatter is configured. Follow the existing code style in `src/` m
 - Log requests with `logRequest(method, path, status)` for observability.
 - Reference `SPEC.md` for API contract and `CONTEXT.md` for terminology before making changes.
 - Define `FolderEntry` in `registry.ts` only — import it elsewhere rather than duplicating.
+
+### 📋 Plans Lifecycle
+
+- `plans/` holds **active and future plans only** — working documents for ongoing work.
+- When a plan is fully implemented, move it to `plans/archive/`.
+- Do not delete archived plans — they are historical reference for future sessions.
 
 ### 🚫 Never
 
