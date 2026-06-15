@@ -68,7 +68,7 @@ A lightweight HTTP file server that allows clients (human or AI agent) to dynami
 │  └──────────────┘    └──────────────────────────────┘   │
 │                                                          │
 │  Binds: 0.0.0.0:<port>                                   │
-│  Default port: 8080 (configurable via CLI/env)          │
+│  Default port: 6868 (configurable via CLI/env)          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -249,15 +249,15 @@ List all registered folders. Behavior depends on `Accept` header.
       {
         "slug": "documents-a3k9xZ",
         "path": "/home/user/documents",
-        "url": "http://localhost:8080/documents-a3k9xZ",
-        "subdomain_url": "http://documents-a3k9xZ.localhost:8080",
+        "url": "http://localhost:6868/documents-a3k9xZ",
+        "subdomain_url": "http://documents-a3k9xZ.localhost:6868",
         "registered_at": "2025-01-15T10:30:00.000Z"
       },
       {
         "slug": "images-k7bMnL",
         "path": "/mnt/photos",
-        "url": "http://localhost:8080/images-k7bMnL",
-        "subdomain_url": "http://images-k7bMnL.localhost:8080",
+        "url": "http://localhost:6868/images-k7bMnL",
+        "subdomain_url": "http://images-k7bMnL.localhost:6868",
         "registered_at": "2025-01-15T11:00:00.000Z"
       }
     ]
@@ -315,11 +315,11 @@ Register a new folder for serving.
   "data": {
     "slug": "documents-a3k9xZ",
     "path": "/home/user/documents",
-    "url": "http://localhost:8080/documents-a3k9xZ",
-    "subdomain_url": "http://documents-a3k9xZ.localhost:8080",
+    "url": "http://localhost:6868/documents-a3k9xZ",
+    "subdomain_url": "http://documents-a3k9xZ.localhost:6868",
     "registered_at": "2025-01-15T10:30:00.000Z"
   },
-  "hint": "Access files at http://localhost:8080/documents-a3k9xZ/filename.txt or use curl -H \"Host: documents-a3k9xZ.localhost:8080\" http://localhost:8080/filename.txt"
+  "hint": "Access files at http://localhost:6868/documents-a3k9xZ/filename.txt or use curl -H \"Host: documents-a3k9xZ.localhost:6868\" http://localhost:6868/filename.txt"
 }
 ```
 
@@ -483,8 +483,8 @@ At least one identifier (`slug` OR `folder_path`) must be provided to locate the
   "data": {
     "slug": "new-name",
     "path": "/home/user/documents",
-    "url": "http://localhost:8080/new-name",
-    "subdomain_url": "http://new-name.localhost:8080",
+    "url": "http://localhost:6868/new-name",
+    "subdomain_url": "http://new-name.localhost:6868",
     "changes": {
       "slug": {
         "from": "documents-a3k9xZ",
@@ -505,8 +505,8 @@ At least one identifier (`slug` OR `folder_path`) must be provided to locate the
   "data": {
     "slug": "documents-a3k9xZ",
     "path": "/home/user/new-documents",
-    "url": "http://localhost:8080/documents-a3k9xZ",
-    "subdomain_url": "http://documents-a3k9xZ.localhost:8080",
+    "url": "http://localhost:6868/documents-a3k9xZ",
+    "subdomain_url": "http://documents-a3k9xZ.localhost:6868",
     "changes": {
       "path": {
         "from": "/home/user/documents",
@@ -582,15 +582,15 @@ Files from registered folders are served via two access patterns. Both resolve t
 #### Path-Based Access
 
 - **Pattern:** `GET /<slug>/<file-path>`
-- **Example:** `http://localhost:8080/documents-a3k9xZ/readme.txt`
+- **Example:** `http://localhost:6868/documents-a3k9xZ/readme.txt`
 - **Resolves to:** `/home/user/documents/readme.txt` (using the registered path)
 
 #### Subdomain-Based Access
 
 - **Pattern:** `GET http://<slug>.<host>:<port>/<file-path>`
-- **Example:** `http://documents-a3k9xZ.localhost:8080/readme.txt`
+- **Example:** `http://documents-a3k9xZ.localhost:6868/readme.txt`
 - **Resolution:** Host header parsed for subdomain prefix, matched against registry Map
-- **Curl syntax:** `curl -H "Host: documents-a3k9xZ.localhost:8080" http://localhost:8080/readme.txt`
+- **Curl syntax:** `curl -H "Host: documents-a3k9xZ.localhost:6868" http://localhost:6868/readme.txt`
 
 #### Successful File Response
 
@@ -687,7 +687,7 @@ Implementation approach:
 
 ```
 Host header value → hostname extraction → subdomain split
-"http://documents-a3k9xZ.localhost:8080/file.txt"
+"http://documents-a3k9xZ.localhost:6868/file.txt"
          ↓
 hostname = "documents-a3k9xZ.localhost"
          ↓
@@ -704,7 +704,7 @@ subdomain = parts[0] if parts.length > 1 else null
 | `localhost` | `null` | Normal path-based routing (check `/` path prefix) |
 | `unknown.localhost` | `unknown` | Slug not found → 404 with LLM-friendly error |
 | `a.b.c.localhost` | `a` | Only first segment treated as subdomain; rest ignored |
-| `127.0.0.1:8080` | `null` | IP-only access — path-based routing only |
+| `127.0.0.1:6868` | `null` | IP-only access — path-based routing only |
 
 ### Access Patterns
 
@@ -712,9 +712,9 @@ The dashboard displays both access methods for each registered folder:
 
 | Pattern | URL Example | Notes |
 |---------|------------|-------|
-| Path-based | `http://localhost:8080/my-slug/file.txt` | Works everywhere — browsers, curl, AI agents |
-| Subdomain (curl) | `curl -H "Host: my-slug.localhost:8080" http://localhost:8080/file.txt` | Requires manual Host header in curl |
-| Subdomain (browser) | `http://my-slug.localhost:8080/file.txt` | Requires `/etc/hosts` entry or wildcard DNS — shown with note that it may not resolve |
+| Path-based | `http://localhost:6868/my-slug/file.txt` | Works everywhere — browsers, curl, AI agents |
+| Subdomain (curl) | `curl -H "Host: my-slug.localhost:6868" http://localhost:6868/file.txt` | Requires manual Host header in curl |
+| Subdomain (browser) | `http://my-slug.localhost:6868/file.txt` | Requires `/etc/hosts` entry or wildcard DNS — shown with note that it may not resolve |
 
 ---
 
@@ -761,7 +761,7 @@ The dashboard displays both access methods for each registered folder:
 
 **Acceptance criteria:**
 - `GET /my-slug/file.txt` serves file from registered folder
-- `curl -H "Host: my-slug.localhost:8080" http://localhost:8080/file.txt` serves same file
+- `curl -H "Host: my-slug.localhost:6868" http://localhost:6868/file.txt` serves same file
 - Path traversal attempts (`/../etc/passwd`) blocked with 403
 - Unknown slug returns structured 404 JSON
 - Missing file within valid slug returns structured 404 JSON
@@ -844,13 +844,13 @@ The dashboard displays both access methods for each registered folder:
 │  └─────────────┴──────────┴──────────┴────────┘ │
 │                                                 │
 │  Access files:                                  │
-│    http://localhost:8080/docs-a3k9xZ/file.txt   │
-│    curl -H "Host: docs-a3k9xZ.localhost:8080" .. │
+│    http://localhost:6868/docs-a3k9xZ/file.txt   │
+│    curl -H "Host: docs-a3k9xZ.localhost:6868" .. │
 └─────────────────────────────────────────────────┘
 ```
 
 **Acceptance criteria:**
-- Dashboard accessible at `http://localhost:8080/` from browser
+- Dashboard accessible at `http://localhost:6868/` from browser
 - All 4 CRUD operations executable from UI
 - List refreshes after each operation
 - Error messages from API displayed in UI
@@ -890,7 +890,7 @@ The dashboard displays both access methods for each registered folder:
 | File serving throughput | Limited by disk I/O | uWebSockets layer adds negligible overhead |
 | Maximum registrations | Unlimited (practical limit: RAM for Map entries) | 1000+ slugs with no performance impact expected |
 | Concurrency | Single-process event loop | Handles hundreds of concurrent connections via async I/O |
-| Port configuration | CLI flag (`--port`) or env var (`PORT`), default 8080 | Standard convention |
+| Port configuration | CLI flag (`--port`) or env var (`PORT`), default 6868 | Standard convention |
 | Node.js compatibility | **Not applicable** — Bun-native APIs only | Not compatible with Node.js runtime |
 
 ---

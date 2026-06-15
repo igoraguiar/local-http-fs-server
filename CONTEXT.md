@@ -8,9 +8,10 @@
 
 | Term | Definition |
 |------|-----------|
-| **MCP Server Mode** | Optional mode activated by `--mcp stdio`. Runs the MCP stdio server alongside the HTTP server, sharing the same registry. Stdout carries MCP JSON-RPC messages; stderr carries all logs. Exposes 4 tools: `register_folder`, `unregister_folder`, `update_folder`, `list_folders`. |
+| **MCP Server Mode** | Optional mode activated by `--mcp <transport>`. Two mutually exclusive transports: `stdio` (JSON-RPC on stdout, logs on stderr) and `http` (Streamable HTTP on `/mcp` endpoint, stateless sessions). Both share the same `McpServer` instance, same 4 tools, and same in-memory registry. |
+| **MCP HTTP Transport** | Streamable HTTP transport (`WebStandardStreamableHTTPServerTransport`) serving MCP JSON-RPC on `/mcp` endpoint. Stateless mode (no session tracking). Same tools and handlers as stdio mode. No authentication (trusted local network). `mcp` slug is reserved and blocked from user registration. |
 | **MCP Tool** | A named function exposed by the MCP server, with a JSON schema for parameters and a structured response. Mirrors the HTTP CRUD API (register, unregister, update, list) with rich responses including HTTP URLs. |
-| **CLI Precedence** | Configuration resolution order: CLI switches > env vars > hardcoded defaults. E.g., `--port 3000` overrides `PORT=8080`, which overrides the default `8080`. |
+| **CLI Precedence** | Configuration resolution order: CLI switches > env vars > hardcoded defaults. E.g., `--port 3000` overrides `PORT=6868`, which overrides the default `6868`. |
 | **Slug** | URL-safe unique identifier for a registered folder, composed of a readable basename + random suffix (8 chars). Format: `^[a-z0-9][a-z0-9_-]{0,63}$`. Used as route prefix (`/<slug>/`) and subdomain (`<slug>.localhost`). |
 | **Registry** | In-memory `Map<string, FolderEntry>` keyed by slug. Holds all active folder registrations. Backed by `registry.json` on disk when persistence is enabled. |
 | **FolderEntry** | Interface with fields: `slug`, `path` (absolute), `createdAt`, `updatedAt`. One entry per registered directory. |
@@ -66,10 +67,11 @@
 ### MCP Server Mode
 - **4 tools:** `register_folder`, `unregister_folder`, `update_folder`, `list_folders`. No `read_file` or `list_directory` — agents have native filesystem access.
 - **Rich responses:** MCP tool responses mirror the HTTP API format (slug, path, url, subdomain_url, timestamps). Agent gets ready-to-use HTTP URLs.
-- **Dual mode:** `--mcp stdio` starts both HTTP server and MCP stdio listener. They share the same in-memory registry. HTTP continues serving files; MCP provides agent-controlled registration.
-- **stdout/stderr split:** When MCP is active, stdout carries MCP JSON-RPC messages only. All logs (startup banner, request logs, errors) go to stderr.
-- **Parameter schema:** MCP tools accept the same parameters as the HTTP API (e.g., optional `slug` in `register_folder`). Tool descriptions clarify non-obvious behavior (e.g., PUT lookup rules).
-- **SDK integration:** Full `@modelcontextprotocol/sdk` usage — `Server` class handles JSON-RPC, handshake, tool registration. Not just types.
+- **Two transports:** `--mcp stdio` (JSON-RPC on stdout, logs on stderr) and `--mcp http` (Streamable HTTP on `/mcp`, stateless sessions). Mutually exclusive. Both share the same `McpServer` instance and in-memory registry.
+- **stdout/stderr split:** Only applies to stdio mode. HTTP mode logs normally to stdout.
+- **Parameter schema:** MCP tools accept the same parameters as the HTTP API (e.g., optional `slug` in `register_folder`). Tool definitions are identical across transports.
+- **SDK integration:** Full `@modelcontextprotocol/sdk` usage — `McpServer` class handles JSON-RPC, handshake, tool registration. `StdioServerTransport` for stdio mode, `WebStandardStreamableHTTPServerTransport` for HTTP mode.
+- **Reserved slug:** `mcp` is blocked from user registration to avoid collision with the `/mcp` endpoint.
 
 ## Architecture Principles
 

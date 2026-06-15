@@ -11,7 +11,7 @@ interface CliConfig {
 
 function parseCliArgs(): CliConfig {
 	const args = process.argv.slice(2);
-	let port = parseInt(process.env.PORT || "8080", 10);
+	let port = parseInt(process.env.PORT || "6868", 10);
 	const host = "0.0.0.0";
 	let mcpStdio = false;
 	let persist = process.env.PERSIST === "true";
@@ -41,8 +41,8 @@ function parseCliArgs(): CliConfig {
 	}
 
 	if (isNaN(port) || port < 0 || port > 65535) {
-		console.error(`Invalid port: ${port}. Using default 8080.`);
-		port = 8080;
+		console.error(`Invalid port: ${port}. Using default 6868.`);
+		port = 6868;
 	}
 
 	return { port, host, mcpStdio, persist, registryFile, printTemplate };

@@ -31,14 +31,14 @@ PERSIST=true bun run index.ts
 PORT=3000 bun run index.ts
 ```
 
-Server starts on `http://0.0.0.0:8080` by default.
+Server starts on `http://0.0.0.0:6868` by default.
 
 ## Usage
 
 ### Register a Folder
 
 ```bash
-curl -X POST http://localhost:8080/ \
+curl -X POST http://localhost:6868/ \
   -H 'Content-Type: application/json' \
   -d '{"folder_path": "/home/user/documents"}'
 ```
@@ -52,40 +52,40 @@ Response:
   "data": {
     "slug": "documents-a3k9xZ",
     "path": "/home/user/documents",
-    "url": "http://localhost:8080/documents-a3k9xZ",
-    "subdomain_url": "http://documents-a3k9xZ.localhost:8080",
+    "url": "http://localhost:6868/documents-a3k9xZ",
+    "subdomain_url": "http://documents-a3k9xZ.localhost:6868",
     "registered_at": "2025-01-15T10:30:00.000Z"
   },
-  "hint": "Access files at http://localhost:8080/documents-a3k9xZ/filename.txt"
+  "hint": "Access files at http://localhost:6868/documents-a3k9xZ/filename.txt"
 }
 ```
 
 ### List Registered Folders
 
 ```bash
-curl http://localhost:8080/?format=json
+curl http://localhost:6868/?format=json
 ```
 
 ### Access Files
 
 ```bash
 # Path-based
-curl http://localhost:8080/documents-a3k9xZ/readme.txt
+curl http://localhost:6868/documents-a3k9xZ/readme.txt
 
 # Subdomain-based
-curl -H "Host: documents-a3k9xZ.localhost:8080" http://localhost:8080/readme.txt
+curl -H "Host: documents-a3k9xZ.localhost:6868" http://localhost:6868/readme.txt
 ```
 
 ### Update a Registration
 
 ```bash
 # Change the folder path
-curl -X PUT http://localhost:8080/ \
+curl -X PUT http://localhost:6868/ \
   -H 'Content-Type: application/json' \
   -d '{"slug": "documents-a3k9xZ", "folder_path": "/home/user/new-documents"}'
 
 # Change the slug
-curl -X PUT http://localhost:8080/ \
+curl -X PUT http://localhost:6868/ \
   -H 'Content-Type: application/json' \
   -d '{"folder_path": "/home/user/documents", "slug": "new-name"}'
 ```
@@ -94,17 +94,17 @@ curl -X PUT http://localhost:8080/ \
 
 ```bash
 # By slug
-curl -X DELETE "http://localhost:8080/?slug=documents-a3k9xZ"
+curl -X DELETE "http://localhost:6868/?slug=documents-a3k9xZ"
 
 # By path
-curl -X DELETE http://localhost:8080/ \
+curl -X DELETE http://localhost:6868/ \
   -H 'Content-Type: application/json' \
   -d '{"folder_path": "/home/user/documents"}'
 ```
 
 ### Dashboard
 
-Open `http://localhost:8080/` in your browser for a visual management interface.
+Open `http://localhost:6868/` in your browser for a visual management interface.
 
 ## API Reference
 
@@ -122,7 +122,7 @@ Full API specification with all request/response examples is in [SPEC.md](SPEC.m
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | `8080` | Server port |
+| `PORT` | `6868` | Server port |
 | `PERSIST` | `false` | Enable `registry.json` persistence (`true` / `false`) |
 
 ## Security
