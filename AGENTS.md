@@ -2,7 +2,7 @@
 
 ## Project Context
 
-Local HTTP File Server is a zero-dependency Bun application that dynamically registers filesystem directories at runtime and serves them via slug-based URL routes and subdomain-based access. It targets local development workflows — humans, curl scripts, and LLM agents alike — providing a structured JSON API for CRUD management plus a self-contained HTML dashboard.
+Local HTTP File Server is a Bun application that dynamically registers filesystem directories at runtime and serves them via slug-based URL routes and subdomain-based access. It targets local development workflows — humans, curl scripts, and LLM agents alike — providing a structured JSON API for CRUD management, a self-contained HTML dashboard, and an MCP stdio server mode for AI agent integration.
 
 ## Tech Stack
 
@@ -13,19 +13,26 @@ Local HTTP File Server is a zero-dependency Bun application that dynamically reg
 | Module System | ESM (`"type": "module"`, `"module": "Preserve"`) |
 | Testing | Bash-based curl test suite (`test.sh`) — no test framework |
 | Persistence | Optional JSON file (`registry.json`) — gated by `PERSIST=true` |
+| MCP | `@modelcontextprotocol/sdk` + `zod` — stdio server mode via `--mcp stdio` |
 
 ## Directory Map
 
 ```
-index.ts          — Single entry point. All logic lives here.
+src/
+  index.ts        — Entry point: parse config, start HTTP + MCP, wire signals
+  cli.ts          — CliConfig, parseCliArgs, log variable, logRequest
+  registry.ts     — FolderEntry, registry Map, loadRegistry, saveRegistry
+  slug.ts         — randomSuffix, normalizeSlugBase, validateSlug, generateSlug
+  handlers.ts     — CrudResult, handleList, handleRegister, handleUnregister, handleUpdate
+  mcp.ts          — createMcpServer, tool registrations
+  http.ts         — Bun.serve fetch callback, routing logic, file serving
+  utils.ts        — ok(), err(), isPathSafe, extractSubdomain, parseRange, generateETag, httpDate, buildDirListing
 dashboard.html    — Self-contained HTML dashboard (served at GET /).
 test.sh           — Automated curl-based test suite covering all phases.
 package.json      — Bun config, scripts, dev dependencies.
 tsconfig.json     — TypeScript strict config (noEmit).
 CONTEXT.md        — Glossary, terminology, and key architectural decisions.
 SPEC.md           — Full API specification with request/response examples.
-TASK.md           — Original task description.
-RESEARCH.md       — Background research notes.
 plans/            — Implementation planning artifacts.
 ```
 
@@ -33,19 +40,21 @@ plans/            — Implementation planning artifacts.
 
 | Action | Command |
 |--------|---------|
-| Start server | `bun run index.ts` |
-| Start with persistence | `PERSIST=true bun run index.ts` |
-| Custom port | `PORT=3000 bun run index.ts` |
+| Start server | `bun run src/index.ts` |
+| Start with persistence | `PERSIST=true bun run src/index.ts` |
+| Start with MCP mode | `bun run src/index.ts --mcp stdio` |
+| Custom port | `PORT=3000 bun run src/index.ts` |
 | Run tests | `bash test.sh` |
 | Run tests on custom port | `TEST_PORT=9200 bash test.sh` |
 
-No linter or formatter is configured. Follow the existing code style in `index.ts`.
+No linter or formatter is configured. Follow the existing code style in `src/` modules.
 
 ## Architecture
 
-- **Single-file architecture:** All server logic lives in `index.ts`. No imports from npm packages.
-- **In-memory registry:** `Map<string, FolderEntry>` keyed by slug — the central data structure.
+- **Multi-module architecture:** 8 focused modules under `src/` — see Directory Map above.
+- **In-memory registry:** `Map<string, FolderEntry>` keyed by slug — exported from `src/registry.ts`, imported by handlers and HTTP layer.
 - **Request flow:** `Bun.serve()` → extract slug from path or Host subdomain → dispatch to CRUD handler or file serving logic.
+- **MCP mode:** `--mcp stdio` starts both HTTP server and MCP stdio listener; stdout = JSON-RPC only, stderr = logs.
 - **Response format:** Every API response uses `{ status, message, data|details, hint }` — see SPEC.md §6 for canonical examples.
 - **Content negotiation:** `GET /` returns HTML dashboard by default; `Accept: application/json` or `?format=json` forces JSON.
 - **Security:** Path traversal protection via `isPathSafe()` — resolved paths must stay within registered folder root.
@@ -74,14 +83,14 @@ No linter or formatter is configured. Follow the existing code style in `index.t
 
 ### 🚫 Never
 
-- Add external npm dependencies — this is a zero-deps project by design.
+- Add npm dependencies beyond `@modelcontextprotocol/sdk` and `zod` — minimal deps by design.
 - Use `any` types — TypeScript strict mode is enforced. Use proper types or `unknown` with narrowing.
 - Commit `.env` files or `registry.json` (both in `.gitignore`).
 - Expose full absolute paths in file-serving responses — use `basename()` truncation.
 - Use `innerHTML` in `dashboard.html` — use `textContent` and `createElement` for XSS safety.
 - Break the existing response format (`{ status, message, data, hint }`).
 - Modify `test.sh` assertions without updating the corresponding behavior first.
-- Introduce build steps or bundlers — the app runs directly via `bun run index.ts`.
+- Introduce build steps or bundlers — the app runs directly via `bun run src/index.ts`.
 
 ## Golden Example
 

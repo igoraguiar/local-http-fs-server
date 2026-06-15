@@ -107,7 +107,7 @@ mkdir -p /tmp/test-folder
 mkdir -p /tmp/another-folder
 
 # Start server
-PERSIST=true PORT="$PORT" bun run index.ts &
+PERSIST=true PORT="$PORT" bun run src/index.ts &
 SERVER_PID=$!
 wait_for_port "$PORT"
 
@@ -362,7 +362,7 @@ SERVER_PID=""
 assert_contains "registry.json survives shutdown" "true" "$(test -f registry.json && echo true || echo false)"
 assert_contains "registry.json has content" "slug" "$(cat registry.json 2>/dev/null)"
 
-PERSIST=true PORT="$PORT" bun run index.ts &
+PERSIST=true PORT="$PORT" bun run src/index.ts &
 SERVER_PID=$!
 wait_for_port "$PORT"
 
@@ -384,7 +384,7 @@ with open('registry.json', 'w') as f:
     json.dump(data, f)
 " 2>/dev/null
 
-PERSIST=true PORT="$PORT" bun run index.ts &
+PERSIST=true PORT="$PORT" bun run src/index.ts &
 SERVER_PID=$!
 wait_for_port "$PORT"
 
@@ -396,7 +396,7 @@ kill "$SERVER_PID" 2>/dev/null || true
 wait "$SERVER_PID" 2>/dev/null || true
 SERVER_PID=""
 
-PORT="$PORT" bun run index.ts &
+PORT="$PORT" bun run src/index.ts &
 SERVER_PID=$!
 wait_for_port "$PORT"
 

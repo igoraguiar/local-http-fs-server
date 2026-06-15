@@ -58,6 +58,11 @@
 ### XSS Protection
 - Dashboard uses `textContent` for all dynamic text and `encodeURIComponent` for URLs in href attributes. Zero `innerHTML` usage. No external dependencies (no DOMPurify).
 
+### Module Structure (Phase 7)
+- **8 modules under `src/`:** `index.ts` (entry), `cli.ts` (config), `registry.ts` (state), `slug.ts` (slug utils), `handlers.ts` (CRUD), `mcp.ts` (MCP server), `http.ts` (Bun.serve), `utils.ts` (shared helpers).
+- **Acyclic dependencies:** `utils.ts` and `slug.ts` are leaf modules (no internal deps). `index.ts` is the only orchestrator.
+- **Entry point:** `src/index.ts` — runs via `bun run src/index.ts`.
+
 ### MCP Server Mode
 - **4 tools:** `register_folder`, `unregister_folder`, `update_folder`, `list_folders`. No `read_file` or `list_directory` — agents have native filesystem access.
 - **Rich responses:** MCP tool responses mirror the HTTP API format (slug, path, url, subdomain_url, timestamps). Agent gets ready-to-use HTTP URLs.
@@ -68,6 +73,6 @@
 
 ## Architecture Principles
 
-- **Single process, minimal deps:** One runtime dependency (`@modelcontextprotocol/sdk` for MCP mode). No build step. See [ADR-0001](./docs/adr/0001-mcp-sdk-dependency.md).
+- **Single process, minimal deps:** Two runtime dependencies (`@modelcontextprotocol/sdk` + `zod` for MCP mode). No build step. See [ADR-0001](./docs/adr/0001-mcp-sdk-dependency.md).
 - **KISS over feature completeness:** Breadth before polish. Incremental delivery with manual verification gates.
 - **LLM-agent first:** Structured JSON responses with `status`, `message`, `data/details`, `hint` fields for programmatic consumption.
