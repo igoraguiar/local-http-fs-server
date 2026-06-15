@@ -1,6 +1,8 @@
 # Local HTTP File Server
 
-A lightweight, zero-dependency HTTP file server built with [Bun](https://bun.sh) that dynamically registers local directories at runtime. Each folder receives a unique URL slug and becomes accessible via path-based routes and subdomain-based access.
+A lightweight HTTP file server built with [Bun](https://bun.sh) that dynamically registers local directories at runtime. Each folder receives a unique URL slug and becomes accessible via path-based routes and subdomain-based access.
+
+> **Entirely LLM-generated** — every line of code in this project was written by [Qwen3.6-27B](https://qwen.ai). No human-written source code.
 
 ## Features
 
@@ -164,6 +166,16 @@ tsconfig.json     — TypeScript strict config
 SPEC.md           — Full API specification
 CONTEXT.md        — Glossary and architectural decisions
 ```
+
+## Acknowledgments
+
+This project would not exist without:
+
+- **[Bun](https://bun.sh)** — the runtime that makes this zero-overhead single-process server possible
+- **[Qwen](https://qwen.ai)** — the Qwen3.6-27B model that wrote every line of code
+- **[llama.cpp](https://github.com/ggerganov/llama.cpp)** — the inference engine that powers local LLM execution
+- **[llama-swap](https://github.com/skips74cpu/llama-swap)** — the memory management tool that makes running large models feasible on consumer hardware
+- **[pi coding agent](https://github.com/earendil-works/pi-coding-agent)** — the AI coding agent that orchestrated the entire project
 
 ## License
 
