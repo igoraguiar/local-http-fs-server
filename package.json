@@ -1,0 +1,20 @@
+{
+  "name": "local-http-fs-server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^25.9.3"
+  },
+  "module": "index.ts",
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
