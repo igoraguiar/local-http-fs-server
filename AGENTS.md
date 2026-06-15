@@ -47,6 +47,9 @@ plans/archive/    — Completed plans (historical reference).
 | Start with MCP mode | `bun run src/index.ts --mcp stdio` |
 | Custom port | `PORT=3000 bun run src/index.ts` |
 | Run all tests | `bun test` |
+| Build native binary | `bun run build` |
+| Build all platforms | `bun run build:all` |
+| Build specific platform | `bun run build:linux-x64` (see README for full list) |
 
 No linter or formatter is configured. Follow the existing code style in `src/` modules.
 
@@ -100,7 +103,7 @@ No linter or formatter is configured. Follow the existing code style in `src/` m
 - Expose full absolute paths in file-serving responses — use `basename()` truncation.
 - Use `innerHTML` in `dashboard.html` — use `textContent` and `createElement` for XSS safety.
 - Break the existing response format (`{ status, message, data, hint }`).
-- Introduce build steps or bundlers — the app runs directly via `bun run src/index.ts`.
+- Introduce build steps or bundlers for development — the app runs directly via `bun run src/index.ts`. Use `bun run build` only for distribution binaries.
 - Define `FolderEntry` in multiple files — it is a single source of truth in `registry.ts`.
 
 ## Golden Example

@@ -39,6 +39,27 @@ bun run src/index.ts --mcp stdio
 
 Server starts on `http://0.0.0.0:6868` by default.
 
+## Building
+
+Compile a standalone executable — no Bun installation required on the target machine:
+
+```bash
+# Current platform (native)
+bun run build
+
+# Specific platform
+bun run build:linux-x64
+bun run build:linux-arm64
+bun run build:windows-x64
+bun run build:darwin-x64
+bun run build:darwin-arm64
+
+# All platforms at once
+bun run build:all
+```
+
+Outputs land in `dist/` with platform suffixes (e.g. `dist/local-http-fs-server-0.1.0-linux-x64`). Windows builds get `.exe` auto-appended.
+
 ## Usage
 
 ### Register a Folder
@@ -131,6 +152,18 @@ Full API specification with all request/response examples is in [SPEC.md](SPEC.m
 | `PORT` env or `--port <n>` | `6868` | Server port |
 | `PERSIST` env or `--persist` | `false` | Enable `registry.json` persistence |
 | `--mcp stdio` | off | Start MCP stdio server alongside HTTP |
+
+### Build Targets
+
+| Script | Target | OS | Arch |
+|--------|--------|----|------|
+| `build` | native | current | current |
+| `build:linux-x64` | `bun-linux-x64` | Linux | x64 (glibc) |
+| `build:linux-arm64` | `bun-linux-arm64` | Linux | ARM64 (glibc) |
+| `build:windows-x64` | `bun-windows-x64` | Windows | x64 |
+| `build:darwin-x64` | `bun-darwin-x64` | macOS | x64 (Intel) |
+| `build:darwin-arm64` | `bun-darwin-arm64` | macOS | ARM64 (Apple Silicon) |
+| `build:all` | all above | — | — |
 
 ## Security
 
