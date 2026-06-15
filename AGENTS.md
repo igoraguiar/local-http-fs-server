@@ -2,7 +2,7 @@
 
 ## Project Context
 
-Local HTTP File Server is a Bun application that dynamically registers filesystem directories at runtime and serves them via slug-based URL routes and subdomain-based access. It targets local development workflows — humans, curl scripts, and LLM agents alike — providing a structured JSON API for CRUD management, a self-contained HTML dashboard, and an MCP stdio server mode for AI agent integration.
+Local HTTP File Server is a Bun application that dynamically registers filesystem directories at runtime and serves them via slug-based URL routes and subdomain-based access. It targets local development workflows — humans, curl scripts, and LLM agents alike — providing a structured JSON API, a self-contained HTML dashboard, and an MCP stdio server mode for AI agent integration.
 
 ## Tech Stack
 
@@ -14,6 +14,7 @@ Local HTTP File Server is a Bun application that dynamically registers filesyste
 | Testing | `bun:test` in `tests/` (direct handler invocation + spawned server) |
 | Persistence | Optional JSON file (`registry.json`) — gated by `PERSIST=true` |
 | MCP | `@modelcontextprotocol/sdk` + `zod` — stdio server mode via `--mcp stdio` |
+| CI/CD | GitHub Actions on `v*` tag push → build all platforms → release artifacts |
 
 ## Directory Map
 
@@ -24,17 +25,22 @@ src/
   registry.ts     — FolderEntry, registry Map, load/save persistence, re-exports slug fn
   slug.ts         — SLUG_REGEX, randomSuffix, normalizeSlugBase, validateSlug, generateSlug
   handlers.ts     — CrudResult, handleList, handleRegister, handleUnregister, handleUpdate
-  mcp.ts          — createMcpServer, 4 tool registrations (mirrors HTTP CRUD)
+  mcp.ts          — createMcpServer, 4 tool registrations (mirror HTTP CRUD)
   http.ts         — startHttpServer, Bun.serve fetch callback, routing + file serving
-  utils.ts        — ok(), err(), isPathSafe, extractSubdomain, parseRange, generateETag, httpDate, buildDirListing
-dashboard.html    — Self-contained HTML dashboard (served at GET / without JSON Accept).
-tests/            — bun:test suite: http-api (direct handler), http-persistence (spawned server), mcp (integration).
-package.json      — Bun config, scripts, dev dependencies.
-tsconfig.json     — TypeScript strict config (noEmit, verbatimModuleSyntax, noUncheckedIndexedAccess).
-CONTEXT.md        — Glossary, terminology, and key architectural decisions.
-SPEC.md           — Full API specification with request/response examples.
-plans/            — Active and future plans only.
-plans/archive/    — Completed plans (historical reference).
+  utils.ts        — ok/err responses, isPathSafe, extractSubdomain, parseRange,
+                    generateETag, httpDate, buildDirListing
+dashboard.html    — Self-contained HTML dashboard (served at GET / without JSON Accept)
+tests/
+  http-api.test.ts            — Direct handler invocation tests (CRUD, file serving)
+  http-persistence.test.ts    — Spawned server persistence tests
+  mcp.test.ts                 — MCP tool unit tests
+  mcp-integration.test.ts     — MCP integration tests
+.github/workflows/release.yml — Build all platforms on v* tag, upload as release assets
+CHANGELOG.md                  — Keep a Changelog format
+SPEC.md                       — Full API specification with request/response examples
+CONTEXT.md                    — Glossary and architectural decisions
+plans/                        — Active and future plans only
+plans/archive/                — Completed plans (historical reference)
 ```
 
 ## Commands
@@ -64,6 +70,7 @@ No linter or formatter is configured. Follow the existing code style in `src/` m
 - **Content negotiation:** `GET /` returns HTML dashboard by default; `Accept: application/json` or `?format=json` forces JSON.
 - **Security:** Path traversal protection via `isPathSafe()` — resolved paths must stay within registered folder root.
 - **Persistence:** Synchronous JSON writes on every mutation when `PERSIST=true`. Loaded on startup, validated against filesystem.
+- **Slug generation:** Base from directory name (normalized, lowercased, ASCII-safe) + 8-char random suffix. Up to 3 attempts before falling back to 12-char suffix.
 
 ## Key Terminology (from CONTEXT.md)
 
@@ -78,7 +85,7 @@ No linter or formatter is configured. Follow the existing code style in `src/` m
 ### ✅ Always
 
 - Use `node:fs/promises` (async) for I/O in request handlers; `node:fs` (sync) only for startup/shutdown persistence and `statSync` in file-serving where sync is acceptable.
-- Return structured JSON via `ok()` / `err()` helpers for all API responses.
+- Return structured JSON via `ok()` / `err()` helpers from `utils.ts` for all API responses.
 - Keep CRUD business logic in `handlers.ts` returning `CrudResult`; let `http.ts` and `mcp.ts` consume it.
 - Validate `folder_path` is absolute (`/` prefix) and exists as a readable directory before registration.
 - Validate slugs against `SLUG_REGEX` — reject with 400, never silently correct.
@@ -88,6 +95,7 @@ No linter or formatter is configured. Follow the existing code style in `src/` m
 - Log requests with `logRequest(method, path, status)` for observability.
 - Reference `SPEC.md` for API contract and `CONTEXT.md` for terminology before making changes.
 - Define `FolderEntry` in `registry.ts` only — import it elsewhere rather than duplicating.
+- Update `CHANGELOG.md` under `[Unreleased]` for every user-visible change.
 
 ### 📋 Plans Lifecycle
 
