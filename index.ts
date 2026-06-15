@@ -289,7 +289,16 @@ Bun.serve({
 		const subdomainSlug = extractSubdomain(hostname);
 
 		// ── API routes: exact path "/" ──────────────────────────────────────────
-		if (pathname === "/" || pathname === "") {
+		// Skip API routes when a valid subdomain slug matches a registered folder
+		// so subdomain requests fall through to file serving
+		const subdomainMatchesRegistry =
+			subdomainSlug !== null &&
+			(registry.has(subdomainSlug) ||
+				[...registry.keys()].some(
+					(k) => k.toLowerCase() === subdomainSlug!.toLowerCase(),
+				));
+
+		if ((pathname === "/" || pathname === "") && !subdomainMatchesRegistry) {
 			switch (method) {
 				case "GET": {
 					const accept = req.headers.get("accept") || "";
