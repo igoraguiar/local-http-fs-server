@@ -174,6 +174,85 @@ Phase 6 (bun:test suite)
 | `--persist=` parsing edge cases | Low | Manual test: `--persist`, `--persist=foo.json`, `--persist=` (empty) |
 | InMemoryTransport requires server to be constructable without Bun.serve | Medium | Factor MCP server construction into a function (e.g., `createMcpServer(registry, config)`) so tests can call it without starting the HTTP server |
 
+## Phase 7 — Module extraction: `index.ts` → `src/` (~1160 lines refactoring)
+
+`index.ts` is 1160 lines — a single file carrying CLI parsing, registry state, CRUD handlers, MCP setup, HTTP routing, and utility functions. Split into 8 focused modules under `src/`.
+
+### Target layout
+
+```
+src/
+  index.ts          — Entry point: parse config, start HTTP + MCP, wire signals
+  cli.ts            — CliConfig, parseCliArgs, log variable, logRequest
+  registry.ts       — FolderEntry, registry Map, loadRegistry, saveRegistry
+  slug.ts           — randomSuffix, normalizeSlugBase, validateSlug, generateSlug, SLUG_REGEX
+  handlers.ts       — CrudResult, handleList, handleRegister, handleUnregister, handleUpdate
+  mcp.ts            — createMcpServer, tool registrations (import handlers)
+  http.ts           — Bun.serve fetch callback, routing logic, file serving
+  utils.ts          — ok(), err(), isPathSafe, extractSubdomain, parseRange, generateETag, httpDate, buildDirListing
+```
+
+### Dependency graph
+
+```
+src/index.ts
+  ├─ src/cli.ts          (no internal deps)
+  ├─ src/registry.ts
+  │   └─ src/slug.ts     (no internal deps)
+  ├─ src/handlers.ts
+  │   ├─ src/registry.ts
+  │   ├─ src/slug.ts
+  │   └─ src/utils.ts    (no internal deps)
+  ├─ src/mcp.ts
+  │   └─ src/handlers.ts
+  └─ src/http.ts
+      ├─ src/handlers.ts
+      ├─ src/registry.ts
+      └─ src/utils.ts
+```
+
+### Module responsibilities
+
+| Module | Lines (est) | Exports |
+|--------|-------------|--------|
+| `utils.ts` | ~80 | `ok`, `err`, `isPathSafe`, `extractSubdomain`, `parseRange`, `generateETag`, `httpDate`, `buildDirListing` |
+| `slug.ts` | ~40 | `randomSuffix`, `normalizeSlugBase`, `validateSlug`, `generateSlug`, `SLUG_REGEX` |
+| `registry.ts` | ~60 | `FolderEntry`, `registry` (Map), `loadRegistry`, `saveRegistry` |
+| `cli.ts` | ~50 | `CliConfig`, `parseCliArgs`, `config`, `log`, `logRequest` |
+| `handlers.ts` | ~250 | `CrudResult`, `handleList`, `handleRegister`, `handleUnregister`, `handleUpdate` |
+| `mcp.ts` | ~100 | `createMcpServer` |
+| `http.ts` | ~400 | `startHttpServer(config)` returning `Bun.Server` |
+| `index.ts` | ~30 | default export, startup wiring, signal handlers |
+
+### Changes to config files
+
+- `package.json`: change `"main"` / entry from `index.ts` → `src/index.ts`
+- `tsconfig.json`: update `"include"` from `["index.ts"]` → `["src/**/*.ts"]`
+- `test.sh`: no changes (HTTP behavior identical)
+- `dashboard.html`: stays at project root, served by `src/http.ts`
+
+### Order of operations
+
+1. Create `src/` directory
+2. Extract `utils.ts` and `slug.ts` first (no internal deps)
+3. Extract `registry.ts` (depends on `slug.ts`)
+4. Extract `handlers.ts` (depends on `registry`, `slug`, `utils`)
+5. Extract `mcp.ts` (depends on `handlers`)
+6. Extract `http.ts` (depends on `handlers`, `registry`, `utils`)
+7. Create `src/index.ts` (depends on all)
+8. Update `package.json` and `tsconfig.json`
+9. Delete `index.ts`
+10. **Gate:** `bash test.sh` → 61/61
+
+### Risks
+
+| Risk | Mitigation |
+|------|-----------|
+| Circular imports between modules | Dependency graph is acyclic by design; `index.ts` is the only orchestrator |
+| `registry` Map shared across modules | Export as singleton from `registry.ts`; both `handlers.ts` and `http.ts` import it |
+| `config` needed by multiple modules | `cli.ts` exports parsed `config`; consumers import it (no circularity since `cli.ts` has no internal deps) |
+| Test suite breaks | `bash test.sh` gate at end; HTTP surface is unchanged |
+
 ## Estimated Effort
 
 | Phase | Lines | Time |
@@ -186,6 +265,7 @@ Phase 6 (bun:test suite)
 | 4. Dual-mode startup + logging | ~30 | 15 min |
 | 5. Polish | ~0 | 10 min |
 | 6. bun:test suite | ~120 | 45 min |
-| **Total** | **~430** | **~3.75 hours** |
+| 7. Module extraction | ~1160 (refactor) | 60 min |
+| **Total** | **~1590** | **~5.25 hours** |
 
 
