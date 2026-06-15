@@ -1,6 +1,9 @@
 import { readdir, stat } from "node:fs/promises";
 import { statSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join, basename } from "node:path";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
 
 // ─── Data Model ───────────────────────────────────────────────────────────────
 
@@ -187,24 +190,71 @@ ${currentPath !== "/" ? `<p><a href="${parentPath}/">Parent directory</a></p>` :
 </body></html>`;
 }
 
-// ─── Server ───────────────────────────────────────────────────────────────────
+// ─── Shared CRUD Result ───────────────────────────────────────────────────────
 
-const PORT = parseInt(process.env.PORT || "8080", 10);
-const HOST = "0.0.0.0";
-const PERSIST =
-	process.env.PERSIST === "true" || process.argv.includes("--persist");
-const REGISTRY_FILE = "registry.json";
+interface CrudResult {
+	ok: boolean;
+	status: number;
+	message: string;
+	data?: Record<string, unknown>;
+	details?: Record<string, unknown>;
+	hint?: string;
+}
+
+// ─── CLI Config ───────────────────────────────────────────────────────────────
+
+interface CliConfig {
+	port: number;
+	host: string;
+	mcpStdio: boolean;
+	persist: boolean;
+	registryFile: string;
+}
+
+function parseCliArgs(): CliConfig {
+	const args = process.argv.slice(2);
+	let port = parseInt(process.env.PORT || "8080", 10);
+	let mcpStdio = false;
+	let persist =
+		process.env.PERSIST === "true" || process.argv.includes("--persist");
+	let registryFile = process.env.REGISTRY_FILE || "registry.json";
+
+	for (let i = 0; i < args.length; i++) {
+		const arg = args[i]!;
+		if (arg === "--port" && i + 1 < args.length) {
+			port = parseInt(args[++i]!, 10);
+		} else if (arg === "--mcp" && i + 1 < args.length) {
+			const mode = args[++i]!;
+			if (mode === "stdio") mcpStdio = true;
+		} else if (arg.startsWith("--persist")) {
+			persist = true;
+			if (arg.includes("=")) {
+				const val = arg.split("=", 2)[1];
+				if (val) registryFile = val;
+			}
+		}
+	}
+
+	return { port, host: "0.0.0.0", mcpStdio, persist, registryFile };
+}
+
+const config = parseCliArgs();
+
+// stdout carries MCP JSON-RPC when active; all logs go to stderr
+const log = config.mcpStdio
+	? console.error.bind(console)
+	: console.log.bind(console);
 
 function logRequest(method: string, path: string, status: number): void {
-	console.log(`[${new Date().toISOString()}] ${method} ${path} → ${status}`);
+	log(`[${new Date().toISOString()}] ${method} ${path} → ${status}`);
 }
 
 // ─── Persistence ──────────────────────────────────────────────────────────────
 
 function loadRegistry(): void {
-	if (!PERSIST) return;
+	if (!config.persist) return;
 	try {
-		const content = readFileSync(REGISTRY_FILE, "utf-8");
+		const content = readFileSync(config.registryFile, "utf-8");
 		const entries: Array<{
 			slug: string;
 			path: string;
@@ -232,18 +282,18 @@ function loadRegistry(): void {
 				);
 			}
 		}
-		console.log(
-			`Persistence: loaded ${registry.size} entries from ${REGISTRY_FILE}`,
+		log(
+			`Persistence: loaded ${registry.size} entries from ${config.registryFile}`,
 		);
 	} catch {
 		console.warn(
-			`Persistence: could not load ${REGISTRY_FILE}, starting with empty registry.`,
+			`Persistence: could not load ${config.registryFile}, starting with empty registry.`,
 		);
 	}
 }
 
 function saveRegistry(): void {
-	if (!PERSIST) return;
+	if (!config.persist) return;
 	try {
 		const entries: Array<{
 			slug: string;
@@ -259,7 +309,11 @@ function saveRegistry(): void {
 				updatedAt: e.updatedAt.toISOString(),
 			});
 		}
-		writeFileSync(REGISTRY_FILE, JSON.stringify(entries, null, 2), "utf-8");
+		writeFileSync(
+			config.registryFile,
+			JSON.stringify(entries, null, 2),
+			"utf-8",
+		);
 	} catch (e) {
 		console.error(`Persistence: failed to save registry: ${e}`);
 	}
@@ -267,20 +321,507 @@ function saveRegistry(): void {
 
 loadRegistry();
 
+// ─── MCP Server ───────────────────────────────────────────────────────────────
+
+function createMcpServer(): McpServer {
+	const server = new McpServer(
+		{ name: "local-http-fs-server", version: "0.1.0" },
+		{ capabilities: { tools: {} } },
+	);
+
+	server.registerTool(
+		"register_folder",
+		{
+			description:
+				"Register a folder to serve over HTTP. Returns the slug and URLs to access files.",
+			inputSchema: z.object({
+				folder_path: z.string().describe(
+					"Absolute path to an existing, readable directory.",
+				),
+				slug: z
+					.string()
+					.optional()
+					.describe(
+						"Optional custom slug. Must match ^[a-z0-9][a-z0-9_-]{0,63}$. Omit to auto-generate.",
+					),
+			}),
+		},
+		async (args) => {
+			const result = await handleRegister(args);
+			return {
+				content: [{ type: "text" as const, text: JSON.stringify(result) }],
+				isError: !result.ok,
+			};
+		},
+	);
+
+	server.registerTool(
+		"unregister_folder",
+		{
+			description:
+				"Unregister a folder, stopping its HTTP serving. Provide slug or folder_path.",
+			inputSchema: z.object({
+				slug: z.string().optional().describe("Slug of the folder to unregister."),
+				folder_path: z
+					.string()
+					.optional()
+					.describe("Absolute path of the folder to unregister."),
+			}),
+		},
+		async (args) => {
+			const result = handleUnregister(args);
+			return {
+				content: [{ type: "text" as const, text: JSON.stringify(result) }],
+				isError: !result.ok,
+			};
+		},
+	);
+
+	server.registerTool(
+		"update_folder",
+		{
+			description:
+				"Update a folder registration (slug or path). Provide slug to identify the entry and folder_path to change its path. If only folder_path is given, it is the lookup key and slug becomes the new slug.",
+			inputSchema: z.object({
+				slug: z
+					.string()
+					.optional()
+					.describe(
+						"Current slug to identify the entry, or new slug if looking up by folder_path.",
+					),
+				folder_path: z
+					.string()
+					.optional()
+					.describe(
+						"Current path to identify the entry, or new path if looking up by slug.",
+					),
+			}),
+		},
+		async (args) => {
+			const result = await handleUpdate(args);
+			return {
+				content: [{ type: "text" as const, text: JSON.stringify(result) }],
+				isError: !result.ok,
+			};
+		},
+	);
+
+	server.registerTool("list_folders", {
+		description:
+			"List all registered folders with their slugs, paths, and URLs.",
+		inputSchema: z.object({}),
+	}, async () => {
+		const result = handleList();
+		return {
+			content: [{ type: "text" as const, text: JSON.stringify(result) }],
+			isError: !result.ok,
+		};
+	});
+
+	return server;
+}
+
+function handleList(): CrudResult {
+	const folders: Array<Record<string, unknown>> = [];
+	for (const entry of registry.values()) {
+		folders.push({
+			slug: entry.slug,
+			path: entry.path,
+			url: `http://localhost:${config.port}/${entry.slug}`,
+			subdomain_url: `http://${entry.slug}.localhost:${config.port}`,
+			registered_at: entry.createdAt.toISOString(),
+		});
+	}
+	const message =
+		folders.length === 0
+			? 'No folders registered yet. POST with { "folder_path": "/path/to/folder" } to add one.'
+			: "List of registered folders. POST to add, DELETE/PUT to manage.";
+	const hint =
+		folders.length === 0
+			? "Register your first folder to start serving files."
+			: 'To register a new folder, POST with { "folder_path": "/path/to/folder" }';
+	return {
+		ok: true,
+		status: 200,
+		message,
+		data: { count: folders.length, folders },
+		hint,
+	};
+}
+
+async function handleRegister(
+	body: Record<string, unknown>,
+): Promise<CrudResult> {
+	const folderPath = body.folder_path as string | undefined;
+	if (!folderPath) {
+		return {
+			ok: false,
+			status: 400,
+			message:
+				"Missing required field 'folder_path'. Provide an absolute path to a directory.",
+			details: {
+				field: "folder_path",
+				received: null,
+				expected: "string (absolute path to an existing directory)",
+			},
+			hint: 'Example: POST with { "folder_path": "/home/user/documents" }',
+		};
+	}
+
+	if (!folderPath.startsWith("/")) {
+		return {
+			ok: false,
+			status: 400,
+			message: `Path '${folderPath}' is not absolute. Provide an absolute path starting with '/'.`,
+			details: { field: "folder_path", value: folderPath },
+			hint: 'Example: POST with { "folder_path": "/home/user/documents" }',
+		};
+	}
+
+	try {
+		const s = await stat(folderPath);
+		if (!s.isDirectory()) {
+			return {
+				ok: false,
+				status: 400,
+				message: `Path '${folderPath}' exists but is not a directory.`,
+				details: { folder_path: folderPath, reason: "not a directory" },
+				hint: "Check that the path exists and is a readable directory.",
+			};
+		}
+	} catch (e: unknown) {
+		const reason = (e as { code?: string }).code || "UNKNOWN";
+		return {
+			ok: false,
+			status: 400,
+			message: `Directory '${folderPath}' does not exist or is not accessible.`,
+			details: { folder_path: folderPath, reason },
+			hint: "Check that the path exists and is a readable directory.",
+		};
+	}
+
+	for (const entry of registry.values()) {
+		if (entry.path === folderPath) {
+			return {
+				ok: false,
+				status: 409,
+				message: `Folder '${folderPath}' is already registered with slug '${entry.slug}'.`,
+				details: { folder_path: folderPath, existing_slug: entry.slug },
+				hint: "Use PUT to update the existing registration, or DELETE it first and re-register.",
+			};
+		}
+	}
+
+	let slug: string;
+	if (body.slug && typeof body.slug === "string" && body.slug.trim()) {
+		const validation = validateSlug(body.slug.trim());
+		if (!validation.valid) {
+			const statusCode = validation.isConflict ? 409 : 400;
+			return {
+				ok: false,
+				status: statusCode,
+				message: `Invalid slug '${body.slug.trim()}'. ${validation.reason}`,
+				details: {
+					field: "slug",
+					value: body.slug.trim(),
+					reason: validation.reason,
+				},
+				hint: "Provide a valid slug or omit it to auto-generate a unique one.",
+			};
+		}
+		slug = body.slug.trim();
+	} else {
+		slug = await generateSlug(folderPath);
+	}
+
+	const now = new Date();
+	const entry: FolderEntry = {
+		slug,
+		path: folderPath,
+		createdAt: now,
+		updatedAt: now,
+	};
+	registry.set(slug, entry);
+	saveRegistry();
+
+	return {
+		ok: true,
+		status: 201,
+		message: `Folder '${slug}' registered at '${folderPath}'. Serving files now.`,
+		data: {
+			slug,
+			path: folderPath,
+			url: `http://localhost:${config.port}/${slug}`,
+			subdomain_url: `http://${slug}.localhost:${config.port}`,
+			registered_at: now.toISOString(),
+		},
+		hint: `Access files at http://localhost:${config.port}/${slug}/filename.txt or use curl -H "Host: ${slug}.localhost:${config.port}" http://localhost:${config.port}/filename.txt`,
+	};
+}
+
+function handleUnregister(identifier: {
+	slug?: string;
+	folder_path?: string;
+}): CrudResult {
+	const { slug: identifierSlug, folder_path: identifierPath } = identifier;
+
+	if (!identifierSlug && !identifierPath) {
+		return {
+			ok: false,
+			status: 400,
+			message:
+				"DELETE requires identification. Provide a 'slug' or 'folder_path' as query parameter or in JSON body.",
+			hint: 'Example: DELETE /?slug=my-slug or DELETE / with { "slug": "my-slug" }',
+		};
+	}
+
+	let entryToRemove: FolderEntry | undefined;
+	if (identifierSlug) {
+		entryToRemove = registry.get(identifierSlug);
+	}
+	if (!entryToRemove && identifierPath) {
+		for (const e of registry.values()) {
+			if (e.path === identifierPath) {
+				entryToRemove = e;
+				break;
+			}
+		}
+	}
+
+	if (!entryToRemove) {
+		return {
+			ok: false,
+			status: 404,
+			message: `No registration found with slug '${identifierSlug || ""}' or path '${identifierPath || ""}'.`,
+			details: {
+				slug: identifierSlug || undefined,
+				folder_path: identifierPath || undefined,
+			},
+			hint: "Use GET / to list all registered folders and their slugs.",
+		};
+	}
+
+	registry.delete(entryToRemove.slug);
+	saveRegistry();
+
+	return {
+		ok: true,
+		status: 200,
+		message: `Folder '${entryToRemove.slug}' unregistered. Files are no longer accessible.`,
+		data: {
+			slug: entryToRemove.slug,
+			path: entryToRemove.path,
+			was_registered_at: entryToRemove.createdAt.toISOString(),
+		},
+		hint: "Folder contents were not deleted from disk — only the serving registration was removed.",
+	};
+}
+
+async function handleUpdate(
+	body: Record<string, unknown>,
+): Promise<CrudResult> {
+	const providedSlug = body.slug as string | undefined;
+	const providedPath = body.folder_path as string | undefined;
+
+	let entryBySlug: FolderEntry | undefined;
+	let entryByPath: FolderEntry | undefined;
+
+	if (providedSlug && providedSlug.trim()) {
+		entryBySlug = registry.get(providedSlug.trim());
+	}
+	if (providedPath && providedPath.trim()) {
+		for (const e of registry.values()) {
+			if (e.path === providedPath.trim()) {
+				entryByPath = e;
+				break;
+			}
+		}
+	}
+
+	const entryToUpdate = entryBySlug || entryByPath;
+	const lookupWasBySlug = !!entryBySlug;
+
+	if (!providedSlug?.trim() && !providedPath?.trim()) {
+		return {
+			ok: false,
+			status: 400,
+			message:
+				"PUT requires at least one identifier field. Provide a 'slug' or 'folder_path' to locate the entry.",
+			hint: 'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
+		};
+	}
+
+	if (!entryToUpdate) {
+		return {
+			ok: false,
+			status: 404,
+			message: `No registration found with slug '${providedSlug || ""}' or path '${providedPath || ""}'.`,
+			details: {
+				slug: providedSlug || undefined,
+				folder_path: providedPath || undefined,
+			},
+			hint: "Use GET / to list all registered folders and their slugs.",
+		};
+	}
+
+	const changes: Record<string, { from: string; to: string }> = {};
+	let updateSlug: string | null = null;
+	let updatePath: string | null = null;
+
+	if (providedSlug?.trim() && providedPath?.trim()) {
+		if (lookupWasBySlug) {
+			if (providedPath.trim() !== entryToUpdate.path)
+				updatePath = providedPath.trim();
+		} else {
+			if (providedSlug.trim() !== entryToUpdate.slug)
+				updateSlug = providedSlug.trim();
+		}
+	} else if (providedSlug?.trim() && !providedPath?.trim()) {
+		if (lookupWasBySlug) {
+			return {
+				ok: false,
+				status: 400,
+				message:
+					"PUT requires at least one update field. Provide a new 'slug' or 'folder_path' to change.",
+				hint: 'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
+			};
+		}
+		updateSlug = providedSlug.trim();
+	} else if (providedPath?.trim() && !providedSlug?.trim()) {
+		if (entryByPath) {
+			return {
+				ok: false,
+				status: 400,
+				message:
+					"PUT requires at least one update field. Provide a new 'slug' or 'folder_path' to change.",
+				hint: 'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
+			};
+		}
+		updatePath = providedPath.trim();
+	}
+
+	if (!updateSlug && !updatePath) {
+		return {
+			ok: false,
+			status: 400,
+			message:
+				"PUT requires at least one update field. Provide a new 'slug' or 'folder_path' to change.",
+			hint: 'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
+		};
+	}
+
+	if (updateSlug) {
+		const validation = validateSlug(updateSlug);
+		if (!validation.valid) {
+			return {
+				ok: false,
+				status: 400,
+				message: `Invalid slug '${updateSlug}'. ${validation.reason}`,
+				details: {
+					field: "slug",
+					value: updateSlug,
+					reason: validation.reason,
+				},
+				hint: "Choose a different slug or omit it to keep the current one.",
+			};
+		}
+		for (const [key, e] of registry.entries()) {
+			if (key !== entryToUpdate.slug && key === updateSlug) {
+				return {
+					ok: false,
+					status: 409,
+					message: `Slug '${updateSlug}' is already in use by '${e.path}'.`,
+					details: { slug: updateSlug, existing_path: e.path },
+					hint: "Choose a different slug or omit it to keep the current one.",
+				};
+			}
+		}
+	}
+
+	if (updatePath) {
+		if (!updatePath.startsWith("/")) {
+			return {
+				ok: false,
+				status: 400,
+				message: `New path '${updatePath}' is not absolute.`,
+				details: { field: "folder_path", value: updatePath },
+				hint: "Provide a valid absolute path to an existing, readable directory.",
+			};
+		}
+		try {
+			const s = await stat(updatePath);
+			if (!s.isDirectory()) {
+				return {
+					ok: false,
+					status: 400,
+					message: `New directory '${updatePath}' does not exist or is not accessible.`,
+					details: { field: "folder_path", value: updatePath },
+					hint: "Provide a valid absolute path to an existing, readable directory.",
+				};
+			}
+		} catch {
+			return {
+				ok: false,
+				status: 400,
+				message: `New directory '${updatePath}' does not exist or is not accessible.`,
+				details: { field: "folder_path", value: updatePath },
+				hint: "Provide a valid absolute path to an existing, readable directory.",
+			};
+		}
+	}
+
+	const oldSlug = entryToUpdate.slug;
+	const oldPath = entryToUpdate.path;
+
+	if (updateSlug) {
+		registry.delete(oldSlug);
+		entryToUpdate.slug = updateSlug;
+		changes.slug = { from: oldSlug, to: updateSlug };
+	}
+
+	if (updatePath) {
+		entryToUpdate.path = updatePath;
+		changes.path = { from: oldPath, to: updatePath };
+	}
+
+	entryToUpdate.updatedAt = new Date();
+	registry.set(entryToUpdate.slug, entryToUpdate);
+	saveRegistry();
+
+	const changeDesc = Object.entries(changes)
+		.map(([k, v]) => `${k} changed from '${v.from}' to '${v.to}'`)
+		.join("; ");
+
+	return {
+		ok: true,
+		status: 200,
+		message: `Folder registration updated. ${changeDesc}.`,
+		data: {
+			slug: entryToUpdate.slug,
+			path: entryToUpdate.path,
+			url: `http://localhost:${config.port}/${entryToUpdate.slug}`,
+			subdomain_url: `http://${entryToUpdate.slug}.localhost:${config.port}`,
+			changes,
+			updated_at: entryToUpdate.updatedAt.toISOString(),
+		},
+		hint: "Files are now accessible at the new URL. The old URL returns 404.",
+	};
+}
+
 process.on("SIGINT", () => {
-	console.log("Shutting down...");
+	log("Shutting down...");
 	saveRegistry();
 	process.exit(0);
 });
 process.on("SIGTERM", () => {
-	console.log("Shutting down...");
+	log("Shutting down...");
 	saveRegistry();
 	process.exit(0);
 });
 
 Bun.serve({
-	hostname: HOST,
-	port: PORT,
+	hostname: config.host,
+	port: config.port,
 	async fetch(req) {
 		const url = new URL(req.url);
 		const method = req.method.toUpperCase();
@@ -315,26 +856,11 @@ Bun.serve({
 						});
 					}
 
-					const folders: Array<Record<string, unknown>> = [];
-					for (const entry of registry.values()) {
-						folders.push({
-							slug: entry.slug,
-							path: entry.path,
-							url: `http://localhost:${PORT}/${entry.slug}`,
-							subdomain_url: `http://${entry.slug}.localhost:${PORT}`,
-							registered_at: entry.createdAt.toISOString(),
-						});
-					}
-					const message =
-						folders.length === 0
-							? 'No folders registered yet. POST with { "folder_path": "/path/to/folder" } to add one.'
-							: "List of registered folders. POST to add, DELETE/PUT to manage.";
-					const hint =
-						folders.length === 0
-							? "Register your first folder to start serving files."
-							: 'To register a new folder, POST with { "folder_path": "/path/to/folder" }';
-					logRequest(method, pathname, 200);
-					return ok(message, { count: folders.length, folders }, hint);
+					const result = handleList();
+					logRequest(method, pathname, result.status);
+					return result.ok
+						? ok(result.message, result.data, result.hint, result.status)
+						: err(result.message, result.status, result.details, result.hint);
 				}
 
 				case "POST": {
@@ -351,110 +877,11 @@ Bun.serve({
 						);
 					}
 
-					const folderPath = body.folder_path as string | undefined;
-					if (!folderPath) {
-						logRequest(method, pathname, 400);
-						return err(
-							"Missing required field 'folder_path'. Provide an absolute path to a directory.",
-							400,
-							{
-								field: "folder_path",
-								received: null,
-								expected: "string (absolute path to an existing directory)",
-							},
-							'Example: POST with { "folder_path": "/home/user/documents" }',
-						);
-					}
-
-					if (!folderPath.startsWith("/")) {
-						logRequest(method, pathname, 400);
-						return err(
-							`Path '${folderPath}' is not absolute. Provide an absolute path starting with '/'.`,
-							400,
-							{ field: "folder_path", value: folderPath },
-							'Example: POST with { "folder_path": "/home/user/documents" }',
-						);
-					}
-
-					try {
-						const s = await stat(folderPath);
-						if (!s.isDirectory()) {
-							logRequest(method, pathname, 400);
-							return err(
-								`Path '${folderPath}' exists but is not a directory.`,
-								400,
-								{ folder_path: folderPath, reason: "not a directory" },
-								"Check that the path exists and is a readable directory.",
-							);
-						}
-					} catch (e: unknown) {
-						const reason = (e as { code?: string }).code || "UNKNOWN";
-						logRequest(method, pathname, 400);
-						return err(
-							`Directory '${folderPath}' does not exist or is not accessible.`,
-							400,
-							{ folder_path: folderPath, reason },
-							"Check that the path exists and is a readable directory.",
-						);
-					}
-
-					for (const entry of registry.values()) {
-						if (entry.path === folderPath) {
-							logRequest(method, pathname, 409);
-							return err(
-								`Folder '${folderPath}' is already registered with slug '${entry.slug}'.`,
-								409,
-								{ folder_path: folderPath, existing_slug: entry.slug },
-								"Use PUT to update the existing registration, or DELETE it first and re-register.",
-							);
-						}
-					}
-
-					let slug: string;
-					if (body.slug && typeof body.slug === "string" && body.slug.trim()) {
-						const validation = validateSlug(body.slug.trim());
-						if (!validation.valid) {
-							const statusCode = validation.isConflict ? 409 : 400;
-							logRequest(method, pathname, statusCode);
-							return err(
-								`Invalid slug '${body.slug.trim()}'. ${validation.reason}`,
-								statusCode,
-								{
-									field: "slug",
-									value: body.slug.trim(),
-									reason: validation.reason,
-								},
-								"Provide a valid slug or omit it to auto-generate a unique one.",
-							);
-						}
-						slug = body.slug.trim();
-					} else {
-						slug = await generateSlug(folderPath);
-					}
-
-					const now = new Date();
-					const entry: FolderEntry = {
-						slug,
-						path: folderPath,
-						createdAt: now,
-						updatedAt: now,
-					};
-					registry.set(slug, entry);
-					saveRegistry();
-
-					logRequest(method, pathname, 201);
-					return ok(
-						`Folder '${slug}' registered at '${folderPath}'. Serving files now.`,
-						{
-							slug,
-							path: folderPath,
-							url: `http://localhost:${PORT}/${slug}`,
-							subdomain_url: `http://${slug}.localhost:${PORT}`,
-							registered_at: now.toISOString(),
-						},
-						`Access files at http://localhost:${PORT}/${slug}/filename.txt or use curl -H "Host: ${slug}.localhost:${PORT}" http://localhost:${PORT}/filename.txt`,
-						201,
-					);
+					const result = await handleRegister(body);
+					logRequest(method, pathname, result.status);
+					return result.ok
+						? ok(result.message, result.data, result.hint, result.status)
+						: err(result.message, result.status, result.details, result.hint);
 				}
 
 				case "DELETE": {
@@ -470,57 +897,14 @@ Bun.serve({
 						// No body or invalid JSON
 					}
 
-					const identifierSlug = querySlug || bodySlug;
-					const identifierPath = queryPath || bodyPath;
-
-					if (!identifierSlug && !identifierPath) {
-						logRequest(method, pathname, 400);
-						return err(
-							"DELETE requires identification. Provide a 'slug' or 'folder_path' as query parameter or in JSON body.",
-							400,
-							undefined,
-							'Example: DELETE /?slug=my-slug or DELETE / with { "slug": "my-slug" }',
-						);
-					}
-
-					let entryToRemove: FolderEntry | undefined;
-					if (identifierSlug) {
-						entryToRemove = registry.get(identifierSlug);
-					}
-					if (!entryToRemove && identifierPath) {
-						for (const e of registry.values()) {
-							if (e.path === identifierPath) {
-								entryToRemove = e;
-								break;
-							}
-						}
-					}
-
-					if (!entryToRemove) {
-						logRequest(method, pathname, 404);
-						return err(
-							`No registration found with slug '${identifierSlug || ""}' or path '${identifierPath || ""}'.`,
-							404,
-							{
-								slug: identifierSlug || undefined,
-								folder_path: identifierPath || undefined,
-							},
-							"Use GET / to list all registered folders and their slugs.",
-						);
-					}
-
-					registry.delete(entryToRemove.slug);
-					saveRegistry();
-					logRequest(method, pathname, 200);
-					return ok(
-						`Folder '${entryToRemove.slug}' unregistered. Files are no longer accessible.`,
-						{
-							slug: entryToRemove.slug,
-							path: entryToRemove.path,
-							was_registered_at: entryToRemove.createdAt.toISOString(),
-						},
-						"Folder contents were not deleted from disk — only the serving registration was removed.",
-					);
+					const result = handleUnregister({
+						slug: querySlug || bodySlug || undefined,
+						folder_path: queryPath || bodyPath || undefined,
+					});
+					logRequest(method, pathname, result.status);
+					return result.ok
+						? ok(result.message, result.data, result.hint, result.status)
+						: err(result.message, result.status, result.details, result.hint);
 				}
 
 				case "PUT": {
@@ -537,187 +921,11 @@ Bun.serve({
 						);
 					}
 
-					const providedSlug = body.slug as string | undefined;
-					const providedPath = body.folder_path as string | undefined;
-
-					let entryBySlug: FolderEntry | undefined;
-					let entryByPath: FolderEntry | undefined;
-
-					if (providedSlug && providedSlug.trim()) {
-						entryBySlug = registry.get(providedSlug.trim());
-					}
-					if (providedPath && providedPath.trim()) {
-						for (const e of registry.values()) {
-							if (e.path === providedPath.trim()) {
-								entryByPath = e;
-								break;
-							}
-						}
-					}
-
-					const entryToUpdate = entryBySlug || entryByPath;
-					const lookupWasBySlug = !!entryBySlug;
-
-					if (!providedSlug?.trim() && !providedPath?.trim()) {
-						logRequest(method, pathname, 400);
-						return err(
-							"PUT requires at least one identifier field. Provide a 'slug' or 'folder_path' to locate the entry.",
-							400,
-							undefined,
-							'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
-						);
-					}
-
-					if (!entryToUpdate) {
-						logRequest(method, pathname, 404);
-						return err(
-							`No registration found with slug '${providedSlug || ""}' or path '${providedPath || ""}'.`,
-							404,
-							{
-								slug: providedSlug || undefined,
-								folder_path: providedPath || undefined,
-							},
-							"Use GET / to list all registered folders and their slugs.",
-						);
-					}
-
-					const changes: Record<string, { from: string; to: string }> = {};
-					let updateSlug: string | null = null;
-					let updatePath: string | null = null;
-
-					if (providedSlug?.trim() && providedPath?.trim()) {
-						if (lookupWasBySlug) {
-							if (providedPath.trim() !== entryToUpdate.path)
-								updatePath = providedPath.trim();
-						} else {
-							if (providedSlug.trim() !== entryToUpdate.slug)
-								updateSlug = providedSlug.trim();
-						}
-					} else if (providedSlug?.trim() && !providedPath?.trim()) {
-						if (lookupWasBySlug) {
-							logRequest(method, pathname, 400);
-							return err(
-								"PUT requires at least one update field. Provide a new 'slug' or 'folder_path' to change.",
-								400,
-								undefined,
-								'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
-							);
-						}
-						updateSlug = providedSlug.trim();
-					} else if (providedPath?.trim() && !providedSlug?.trim()) {
-						if (entryByPath) {
-							logRequest(method, pathname, 400);
-							return err(
-								"PUT requires at least one update field. Provide a new 'slug' or 'folder_path' to change.",
-								400,
-								undefined,
-								'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
-							);
-						}
-						updatePath = providedPath.trim();
-					}
-
-					if (!updateSlug && !updatePath) {
-						logRequest(method, pathname, 400);
-						return err(
-							"PUT requires at least one update field. Provide a new 'slug' or 'folder_path' to change.",
-							400,
-							undefined,
-							'Example: PUT with { "slug": "current-slug", "folder_path": "/new/path" } to update the path.',
-						);
-					}
-
-					if (updateSlug) {
-						const validation = validateSlug(updateSlug);
-						if (!validation.valid) {
-							logRequest(method, pathname, 400);
-							return err(
-								`Invalid slug '${updateSlug}'. ${validation.reason}`,
-								400,
-								{ field: "slug", value: updateSlug, reason: validation.reason },
-								"Choose a different slug or omit it to keep the current one.",
-							);
-						}
-						for (const [key, e] of registry.entries()) {
-							if (key !== entryToUpdate.slug && key === updateSlug) {
-								logRequest(method, pathname, 409);
-								return err(
-									`Slug '${updateSlug}' is already in use by '${e.path}'.`,
-									409,
-									{ slug: updateSlug, existing_path: e.path },
-									"Choose a different slug or omit it to keep the current one.",
-								);
-							}
-						}
-					}
-
-					if (updatePath) {
-						if (!updatePath.startsWith("/")) {
-							logRequest(method, pathname, 400);
-							return err(
-								`New path '${updatePath}' is not absolute.`,
-								400,
-								{ field: "folder_path", value: updatePath },
-								"Provide a valid absolute path to an existing, readable directory.",
-							);
-						}
-						try {
-							const s = await stat(updatePath);
-							if (!s.isDirectory()) {
-								logRequest(method, pathname, 400);
-								return err(
-									`New directory '${updatePath}' does not exist or is not accessible.`,
-									400,
-									{ field: "folder_path", value: updatePath },
-									"Provide a valid absolute path to an existing, readable directory.",
-								);
-							}
-						} catch {
-							logRequest(method, pathname, 400);
-							return err(
-								`New directory '${updatePath}' does not exist or is not accessible.`,
-								400,
-								{ field: "folder_path", value: updatePath },
-								"Provide a valid absolute path to an existing, readable directory.",
-							);
-						}
-					}
-
-					const oldSlug = entryToUpdate.slug;
-					const oldPath = entryToUpdate.path;
-
-					if (updateSlug) {
-						registry.delete(oldSlug);
-						entryToUpdate.slug = updateSlug;
-						changes.slug = { from: oldSlug, to: updateSlug };
-					}
-
-					if (updatePath) {
-						entryToUpdate.path = updatePath;
-						changes.path = { from: oldPath, to: updatePath };
-					}
-
-					entryToUpdate.updatedAt = new Date();
-					registry.set(entryToUpdate.slug, entryToUpdate);
-					saveRegistry();
-
-					const changeDesc = Object.entries(changes)
-						.map(([k, v]) => `${k} changed from '${v.from}' to '${v.to}'`)
-						.join("; ");
-
-					logRequest(method, pathname, 200);
-					return ok(
-						`Folder registration updated. ${changeDesc}.`,
-						{
-							slug: entryToUpdate.slug,
-							path: entryToUpdate.path,
-							url: `http://localhost:${PORT}/${entryToUpdate.slug}`,
-							subdomain_url: `http://${entryToUpdate.slug}.localhost:${PORT}`,
-							changes,
-							updated_at: entryToUpdate.updatedAt.toISOString(),
-						},
-						"Files are now accessible at the new URL. The old URL returns 404.",
-					);
+					const result = await handleUpdate(body);
+					logRequest(method, pathname, result.status);
+					return result.ok
+						? ok(result.message, result.data, result.hint, result.status)
+						: err(result.message, result.status, result.details, result.hint);
 				}
 
 				default:
@@ -925,6 +1133,21 @@ Bun.serve({
 	},
 });
 
-console.log(`Local HTTP File Server running at http://${HOST}:${PORT}`);
-console.log(`API: http://localhost:${PORT}/`);
-console.log(`Dashboard: http://localhost:${PORT}/ (browser)`);
+// ─── Startup ──────────────────────────────────────────────────────────────────
+
+if (config.mcpStdio) {
+	log(
+		`MCP stdio server + HTTP server running at http://${config.host}:${config.port}`,
+	);
+	log(`MCP tools: register_folder, unregister_folder, update_folder, list_folders`);
+
+	const mcpServer = createMcpServer();
+	const transport = new StdioServerTransport();
+	mcpServer.connect(transport);
+} else {
+	log(
+		`Local HTTP File Server running at http://${config.host}:${config.port}`,
+	);
+	log(`API: http://localhost:${config.port}/`);
+	log(`Dashboard: http://localhost:${config.port}/ (browser)`);
+}
